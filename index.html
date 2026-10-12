@@ -175,6 +175,7 @@
     </select>
     <div class="hint">Autres types lisibles à la caméra : QR Code, DataMatrix, PDF417, Code 93, Codabar, UPC-E.</div>
     <div id="output"></div>
+    <div class="hint" id="verifyNote" style="display:none"></div>
     <button id="fullBtn">⤢ Afficher en plein écran</button>
     <button class="sec" id="pngBtn"> Télécharger en image (PNG)</button>
     <button class="sec" id="printBtn">️ Imprimer / PDF</button>
@@ -228,6 +229,7 @@
   });
   var fullBtn = document.getElementById('fullBtn');
   var pngBtn = document.getElementById('pngBtn');
+  var verifyNote = document.getElementById('verifyNote');
   var printBtn = document.getElementById('printBtn');
   var historyEl = document.getElementById('history');
   var emptyHist = document.getElementById('emptyHist');
@@ -1745,6 +1747,16 @@
     var txt = await ocrReadTextDeep(video);
     ocrBusy = false;
     var cands = ocrCandidates(txt);
+    var sdPr = null; try { sdPr = sdFromPrinted(txt); } catch (eSd) { sdPr = null; }
+    if (sdPr) {
+      if (scanMode === 'photo' && running) { stopScan(); }
+      statusEl.className = 'hint';
+      statusEl.textContent = '✅ N° SD imprimé lu à côté du code (clé vérifiée ✓).';
+      saveHistory(sdPr.id + sdPr.key, 'TEXTE');
+      pendingNote = '📮 N° SD lu sur le texte imprimé à côté du code (clé de contrôle vérifiée ✓) — le code lui-même était illisible. Vérifiez le numéro avant usage.';
+      openResult(sdPr.id + sdPr.key, ocrGuessFormat(sdPr.id + sdPr.key));
+      return;
+    }
     if (!cands.length) {
       statusEl.className = 'hint err';
       statusEl.textContent = 'Aucun numéro lisible sur le texte autour du code. Rapprochez-vous du texte imprimé et réessayez.';
@@ -2493,6 +2505,126 @@
     return svg.replace(/(fill|stroke)="#0{3,6}"/gi, '$1="' + col + '"');
   }
 
+  /* ===== V31 : TEST DU CODE RÉGÉNÉRÉ (aller-retour) ===== */
+  /* Le code régénéré est relu par l'application elle-même : si le test réussit,
+     le code contient bien le bon numéro ; sinon on invite à réessayer ou à
+     reprendre la photo d'origine. */
+  var verifyBusy = false;
+  function verifyReaderFor(modeNow) {
+    try {
+      if (!window.ZXing) return null;
+      var BF = ZXing.BarcodeFormat;
+      var fmts;
+      if (modeNow === 'qr') fmts = [BF.QR_CODE];
+      else if (modeNow === 'dm') fmts = [BF.DATA_MATRIX];
+      else fmts = [BF.CODE_128, BF.EAN_13, BF.EAN_8, BF.UPC_A, BF.CODE_39, BF.ITF];
+      var hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, fmts);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      var r = new ZXing.MultiFormatReader();
+      r.setHints(hints);
+      return r;
+    } catch (e) { return null; }
+  }
+  function verifyRoundTrip() {
+    if (verifyBusy) return;
+    var svg = currentSvg();
+    var value = String(lastResult || '');
+    if (!svg || !value) return;
+    if (!window.ZXing) return; /* moteur absent : pas de test, pas de message d'erreur */
+    verifyBusy = true;
+    var reader = verifyReaderFor(mode);
+    var ser = null;
+    try { ser = new XMLSerializer().serializeToString(svg); } catch (eS) { ser = null; }
+    if (!reader || !ser) { verifyBusy = false; return; }
+    var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(ser);
+    var img = new Image();
+    var sizes = [900, 500, 320];
+    var si = 0;
+    function tryNext() {
+      if (si >= sizes.length) {
+        verifyBusy = false;
+        verifyNote.style.display = '';
+        verifyNote.className = 'hint err';
+        verifyNote.textContent = '❌ Test échoué : le code régénéré n’a pas pu être relu correctement. Touchez « Régénérer avec cette valeur » pour réessayer, ou reprenez la photo du code d’origine.';
+        return;
+      }
+      var size = sizes[si++];
+      var iw = img.width || size, ih = img.height || size;
+      var sc = size / Math.max(iw, ih);
+      var dw = Math.max(60, Math.round(iw * sc)), dh = Math.max(60, Math.round(ih * sc));
+      var c = getZxCanvas2();
+      c.width = dw; c.height = dh;
+      var ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, dw, dh);
+      ctx.imageSmoothingEnabled = false;
+      try {
+        ctx.drawImage(img, 0, 0, dw, dh);
+        var r = reader.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c))));
+        var got = r.getText();
+        if (got && got.toUpperCase() === value.toUpperCase()) {
+          verifyBusy = false;
+          verifyNote.style.display = '';
+          verifyNote.className = 'hint';
+          verifyNote.textContent = '✅ Test réussi : le code régénéré a été relu par l’application — il contient bien le bon numéro. Vous pouvez l’utiliser.';
+          silentWebConfirm(value);
+        } else { tryNext(); }
+      } catch (e) { tryNext(); }
+    }
+    img.onload = function () { tryNext(); };
+    img.onerror = function () { verifyBusy = false; };
+    img.src = url;
+  }
+  /* Confirmation discrète : quand le numéro ressemble à un envoi suivi et que
+     l'application est en ligne, une vérification est tentée en silence. Elle
+     n'interrompt jamais l'utilisateur et n'affiche rien si elle n'aboutit pas. */
+  function silentWebConfirm(value) {
+    try {
+      var v = String(value || '').replace(/s+/g, '').toUpperCase();
+      var isSuivi = /^[A-Z]{2}d{9}[A-Z]{0,2}$/.test(v) || /^d[A-Z]d{9,}$/.test(v) || sdKeyValid(v);
+      if (!isSuivi || typeof navigator === 'undefined' || !navigator.onLine) return;
+      fetch('https://www.laposte.fr/outils/suivre-vos-envois?code=' + encodeURIComponent(v), { credentials: 'omit' })
+        .then(function (r) {
+          if (r && r.ok) {
+            verifyNote.style.display = '';
+            verifyNote.className = 'hint';
+            verifyNote.textContent = '✅ Test réussi : le code régénéré a été relu par l’application — il contient bien le bon numéro. Vous pouvez l’utiliser.';
+          }
+        }).catch(function () {});
+    } catch (e) {}
+  }
+  /* ===== V31 : CROISEMENT MAXIMAL — le numéro imprimé gagne quand le code
+     lu n'est confirmé par AUCUNE clé (code raturé, barré, coupon interne). ===== */
+  function printedWins(codeVal, ocrText, fmt) {
+    if (!codeVal || !ocrText) return null;
+    var cv = String(codeVal);
+    var cDig = cv.replace(/D/g, '');
+    if (cDig.length < 10 || cDig !== cv) return null; /* uniquement numéros purs (code-barres) */
+    var f = FORMAT_MAP[fmt] || (['EAN13', 'EAN8', 'UPC', 'ITF14'].indexOf(fmt) !== -1 ? fmt : null);
+    if (f) { var chk0 = checkValue(cv, f); if (chk0 && chk0.ok) return null; } /* lecture confirmée par sa clé → rien à changer */
+    var cands = ocrCandidates(ocrText);
+    var i, cd, dd;
+    /* 1) candidat imprimé de même longueur dont la clé vérifie → prioritaire */
+    if (f) {
+      for (i = 0; i < cands.length; i++) {
+        cd = String(cands[i]).toUpperCase().replace(/[^A-Z0-9]/g, '');
+        dd = cd.replace(/D/g, '');
+        if (dd !== cd || dd.length !== cDig.length || dd === cDig) continue;
+        var chk = checkValue(dd, f);
+        if (chk && chk.ok) return { value: chk.value, note: '🔧 Code mal lu (raturé / barré) : remplacé par le numéro imprimé à côté du code (clé de contrôle vérifiée ✓).' };
+      }
+    }
+    /* 2) pas de clé possible (code interne, coupon…) : un numéro imprimé de la
+       même longueur, différent, prend le dessus — avec invitation à vérifier */
+    for (i = 0; i < cands.length; i++) {
+      cd = String(cands[i]).toUpperCase().replace(/[^A-Z0-9]/g, '');
+      dd = cd.replace(/D/g, '');
+      if (dd !== cd || dd.length !== cDig.length || dd === cDig) continue;
+      return { value: dd, note: '⚠️ La lecture du code était douteuse (raturé / barré) : le numéro affiché vient du texte imprimé à côté du code. Vérifiez-le avant de l’utiliser.' };
+    }
+    return null;
+  }
+
   function renderOutput() {
     var value = lastResult || '';
     output.innerHTML = '';
@@ -2535,6 +2667,9 @@
         showError(res.err || 'Impossible de générer ce code-barres.');
       }
     }
+    /* V31 : test du code régénéré (aller-retour) */
+    verifyNote.style.display = 'none';
+    setTimeout(verifyRoundTrip, 60);
   }
 
   /* ================= EXPORT PNG / IMPRESSION / PLEIN ÉCRAN ================= */
@@ -2648,6 +2783,9 @@
           if (rep) { acceptResult(rep.value, format, rep.note); return; }
           var repSd = sdRepair(value, txt);
           if (repSd) { acceptResult(repSd.value, format, repSd.note); return; }
+          /* V31 : croisement maximal — le numéro imprimé gagne si le code lu n'est confirmé par aucune clé */
+          var pw = printedWins(value, txt, format);
+          if (pw) { acceptResult(pw.value, format, pw.note); return; }
           /* V28 : DataMatrix mal lu (abîmé / caché) sans n° fiable dans le code :
              on affiche le n° SD imprimé à côté (clé vérifiée) */
           var printedSd = sdFromPrinted(txt);
@@ -2681,7 +2819,7 @@
           return;
         }
         if (!ocrAvailable()) {
-          finish(false, 'Aucun code détecté sur cette photo, et la lecture du texte n’est pas chargée (rechargez une fois avec Internet).');
+          finish(false, '❌ Test échoué — aucun code détecté sur cette photo, et la lecture du texte n’est pas chargée (rechargez une fois avec Internet). Réessayez en reprenant la photo.');
           return;
         }
         finish(true, 'Code illisible — lecture du numéro écrit à côté…');
@@ -2689,6 +2827,14 @@
         statusEl.textContent = ' Code illisible — lecture des chiffres, lettres et symboles écrits à côté…';
         ocrReadTextDeep(img).then(function (txt) {
           var cands = ocrCandidates(txt);
+          var sdPr = null; try { sdPr = sdFromPrinted(txt); } catch (eSd) { sdPr = null; }
+          if (sdPr) {
+            statusEl.textContent = '✅ Code illisible, mais le n° SD imprimé a été lu (clé vérifiée ✓).';
+            saveHistory(sdPr.id + sdPr.key, 'TEXTE');
+            pendingNote = '📮 N° SD lu sur le texte imprimé à côté du code (clé de contrôle vérifiée ✓) — le code lui-même était illisible. Vérifiez le numéro avant usage.';
+            openResult(sdPr.id + sdPr.key, ocrGuessFormat(sdPr.id + sdPr.key));
+            return;
+          }
           if (cands.length) {
             var best = ocrBestCandidate(cands);
             statusEl.textContent = '✅ Code illisible, mais le numéro écrit à côté a été lu.';
@@ -2697,7 +2843,7 @@
             openResult(best.v, ocrGuessFormat(best.v));
           } else {
             statusEl.className = 'hint err';
-            statusEl.textContent = 'Aucun code détecté et aucun numéro lisible à côté. Rapprochez-vous du code ET du texte imprimé, photo nette et bien éclairée. Si le code est DÉCHIRÉ en deux, cadrez les DEUX morceaux proches l’un de l’autre sur la même photo. Sinon, tapez le numéro vous-même dans la carte « ✍️ Générer un code depuis un texte » en bas de page.';
+            statusEl.textContent = '❌ Test échoué — aucun code détecté et aucun numéro lisible à côté. Rapprochez-vous du code ET du texte imprimé, photo nette et bien éclairée. Si le code est DÉCHIRÉ en deux, cadrez les DEUX morceaux proches l’un de l’autre sur la même photo. Sinon, tapez le numéro vous-même dans la carte « ✍️ Générer un code depuis un texte » en bas de page.';
           }
         });
       }
