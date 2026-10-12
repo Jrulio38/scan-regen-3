@@ -1,0 +1,2542 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scan &amp; Régénère 3</title>
+<meta name="theme-color" content="#0a0817" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Scan &amp; Régénère 3" />
+<meta name="description" content="Scanner et régénérer des codes-barres, QR codes et DataMatrix — Smart Data La Poste incluse. Fonctionne hors-ligne." />
+<link rel="manifest" href="manifest.json" />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<link rel="preconnect" href="https://unpkg.com" crossorigin />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<style>
+  :root {
+    --bg:#0a0817; --card:rgba(148,120,255,.07); --line:rgba(167,139,250,.18);
+    --txt:#eceafd; --muted:#a5a0c4;
+    --grad:linear-gradient(135deg,#06b6d4 0%,#7c3aed 55%,#db2777 100%);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background:var(--bg); color:var(--txt);
+    -webkit-tap-highlight-color:transparent;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:18px 16px 36px; max-width:680px; margin-inline:auto; min-height:100vh;
+    background: radial-gradient(1100px 520px at 85% -12%, rgba(124,58,237,.22), transparent 60%),
+                radial-gradient(900px 430px at -12% 6%, rgba(6,182,212,.15), transparent 55%),
+                var(--bg);
+  }
+  h1 { font-size:1.45rem; margin:6px 0 2px; letter-spacing:.3px; }
+  h1 .v3 { display:inline-block; margin-left:8px; padding:2px 13px; border-radius:999px; background:var(--grad);
+    color:#fff; font-size:1.02rem; vertical-align:middle; box-shadow:0 2px 16px rgba(124,58,237,.5); }
+  .sub { color:var(--muted); font-size:.85rem; margin-bottom:16px; line-height:1.45; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:16px; margin-bottom:14px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow:0 8px 28px rgba(5,4,20,.35); }
+  button { background:var(--grad); color:#fff; border:none; border-radius:14px; padding:13px 18px; font-size:1rem;
+    font-weight:700; cursor:pointer; width:100%; box-shadow:0 3px 18px rgba(124,58,237,.35);
+    transition: transform .06s ease, filter .15s ease; }
+  button:active { transform:scale(.985); }
+  button.sec { background:rgba(167,139,250,.10); border:1px solid var(--line); box-shadow:none; margin-top:8px; }
+  button.sec:hover { background:rgba(167,139,250,.17); }
+  button.active { outline:3px solid #22d3ee; }
+  .switchRow { display:flex; align-items:center; justify-content:center; gap:12px; margin-top:10px; flex-wrap:wrap; }
+  .swLbl { font-size:.9rem; color:var(--muted); }
+  #lblPhoto.actif { color:#4ade80; font-weight:700; }
+  #lblVollee.actif { color:#f87171; font-weight:700; }
+  .flashBtn.on { background:linear-gradient(135deg,#16a34a,#15803d); }   /* vert = flash allumé */
+  .flashBtn.off { background:linear-gradient(135deg,#dc2626,#b91c1c); }  /* rouge = flash éteint */
+  .flashBtn.auto { background:linear-gradient(135deg,#ea580c,#c2410c); } /* orange = flash auto */
+  .switch { position:relative; display:inline-block; width:54px; height:28px; flex:none; }
+  .switch input { opacity:0; width:0; height:0; }
+  .slider { position:absolute; cursor:pointer; inset:0; background:#dc2626; border-radius:28px; transition:.2s; }
+  .slider:before { content:""; position:absolute; height:22px; width:22px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; }
+  .switch input:checked + .slider { background:#16a34a; }
+  .switch input:not(:checked) + .slider:before { transform:translateX(26px); }
+  video { width:100%; border-radius:14px; background:#000; display:block; border:1px solid var(--line); }
+  #result { display:none; }
+  input[type=text] { width:100%; padding:12px; border-radius:12px; border:1px solid var(--line);
+    background:rgba(10,8,23,.72); color:var(--txt); font-size:1.1rem; letter-spacing:1px; }
+  input[type=text]:focus { outline:2px solid #22d3ee; border-color:transparent; }
+  select { width:100%; padding:10px; border-radius:12px; background:rgba(10,8,23,.78); color:var(--txt);
+    border:1px solid var(--line); font-size:1rem; margin-top:8px; }
+  .val { font-size:1.42rem; font-weight:800; word-break:break-all; text-align:center; margin:10px 0;
+    background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .err { color:#fb7185; font-weight:600; }
+  #output { text-align:center; padding:10px 0; }
+  #output svg { max-width:100%; height:auto; background:#fff; border-radius:12px; padding:8px; box-shadow:0 4px 20px rgba(0,0,0,.45); }
+  .tabs { display:flex; gap:8px; margin-top:10px; }
+  .tabs button { background:rgba(167,139,250,.10); border:1px solid var(--line); box-shadow:none; }
+  .tabs button.active { background:var(--grad); border-color:transparent; }
+  ul { list-style:none; padding:0; margin:0; }
+  li { display:flex; justify-content:space-between; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line); font-size:.95rem; }
+  li .fmt { color:var(--muted); font-size:.8rem; }
+  li button { width:auto; background:rgba(167,139,250,.10); border:1px solid var(--line); box-shadow:none; padding:6px 10px; font-size:.8rem; }
+  .hint { color:var(--muted); font-size:.85rem; margin-top:8px; }
+  #printArea { display:none; }
+  #fsOverlay { position:fixed; inset:0; background:#fff; z-index:99; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+  #fsOverlay svg { max-width:96vw; max-height:80vh; width:auto; height:auto; }
+  #fsOverlay .close { margin-top:14px; }
+  input[type=color] { border:1px solid var(--line); }
+  @media print {
+    body > *:not(#printArea) { display:none !important; }
+    body { background:#fff; color:#000; max-width:none; padding:0; }
+    #printArea { display:block; text-align:center; }
+    #printArea svg { width:90%; max-width:700px; height:auto; }
+    #printArea .plabel { font-size:14pt; font-weight:700; letter-spacing:1px; margin:6mm 0 3mm; word-break:break-all; }
+    #printArea .ptitle { font-size:11pt; color:#555; margin:0 0 8mm; }
+  }
+</style>
+</head>
+<body>
+  <h1>🚀 Scan &amp; Régénère <span class="v3">3</span></h1>
+  <div class="sub">Édition 3 — nouveau design, plus rapide. Scanne un code abîmé avec la caméra ou une photo : il est régénéré en QR code, code-barres ou DataMatrix propre (Smart Data La Poste reconnue). La génération fonctionne hors-ligne.</div>
+
+  <div class="card" id="scanCard">
+    <video id="video" playsinline muted></video>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button id="startBtn">▶︎ Démarrer la caméra</button>
+    </div>
+    <div class="switchRow">
+      <span class="swLbl" id="lblPhoto"> Photo unique</span>
+      <label class="switch"><input type="checkbox" id="modeSwitch" checked /><span class="slider"></span></label>
+      <span class="swLbl" id="lblVollee">⚡ Scan à la volée</span>
+    </div>
+    <button class="sec flashBtn auto" id="flashBtn" style="display:none;margin-top:10px"> Flash : auto</button>
+    <div id="flashHint" class="hint" style="display:none"></div>
+    <button class="sec" id="photoBtn">️ Scanner depuis une photo</button>
+    <div class="hint" style="margin-top:10px;margin-bottom:0"> Type de code à lire (facultatif — améliore la reconnaissance) :</div>
+    <select id="scanFormat">
+      <option value="auto">Tous les types (détection automatique)</option>
+      <option value="QR_CODE">QR Code</option>
+      <option value="EAN_13">Code-barres EAN-13 (produits)</option>
+      <option value="EAN_8">Code-barres EAN-8</option>
+      <option value="UPC_A">Code-barres UPC-A</option>
+      <option value="CODE_128">Code-barres Code 128</option>
+      <option value="CODE_39">Code-barres Code 39</option>
+      <option value="ITF">Code-barres ITF (ITF-14, 2/5)</option>
+      <option value="DATA_MATRIX">DataMatrix</option>
+    </select>
+    <button class="sec" id="ocrBtn" style="display:none"> Lire le numéro écrit à côté du code</button>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" />
+    <canvas id="zxCanvas" style="display:none"></canvas>
+    <div id="scanStatus" class="hint">Visez le code-barres, la détection est automatique.</div>
+    <div id="libStatus" class="hint"></div>
+  </div>
+
+  <div class="card" id="genCard">
+    <div style="font-weight:700;margin-bottom:6px">✍️ Générer un code depuis un texte</div>
+    <input type="text" id="genInput" placeholder="Tapez ici votre texte, URL ou code…" />
+    <button id="genQrBtn">⚡ Générer un QR Code</button>
+    <button class="sec" id="genBcBtn">⊢ Générer un code-barres (type choisi dessous)</button>
+    <button class="sec" id="genDmBtn">⬛ Générer un DataMatrix (suivi, Smart Data, timbres — max 114 caractères)</button>
+    <select id="genFormat">
+      <option value="CODE128">Code 128 (le plus universel)</option>
+      <option value="EAN13">EAN-13 (13 chiffres, produits)</option>
+      <option value="EAN8">EAN-8 (8 chiffres)</option>
+      <option value="ITF14">ITF-14 / EAN-14 (14 chiffres, cartons)</option>
+      <option value="UPC">UPC-A (12 chiffres)</option>
+      <option value="CODE39">Code 39 (chiffres + MAJUSCULES)</option>
+      <option value="ITF">ITF 2/5 (nombre pair de chiffres)</option>
+    </select>
+    <div class="hint">QR Code : tout texte (URL, Wi-Fi, texte libre). Code-barres : choisissez le type dans la liste ci-dessus (Code 128 : chiffres et lettres simples ; EAN-13 : 12 ou 13 chiffres ; ITF-14 / EAN-14 : 13 ou 14 chiffres ; la clé de contrôle manquante est calculée automatiquement). Tout code généré est conservé jusqu'à « Tout effacer ».</div>
+  </div>
+
+  <div class="card" id="result">
+    <div style="text-align:right"><button class="sec" id="closeBtn" style="width:auto;padding:6px 12px">✕</button></div>
+    <div class="hint">Code détecté :</div>
+    <div class="val" id="val"></div>
+    <div class="hint" id="repairNote" style="display:none"></div>
+    <div class="hint" id="sdInfo" style="display:none"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap">
+      <span class="hint" style="margin:0">🎨 Couleur du code régénéré :</span>
+      <input type="color" id="genColor" value="#000000" style="width:46px;height:32px;border:1px solid #ccc;border-radius:6px;background:none;padding:2px" />
+      <span class="hint" id="colorNote" style="margin:0;flex:1;min-width:150px"></span>
+    </div>
+    <input type="text" id="editVal" placeholder="…ou saisissez un code à la main — ? = chiffre illisible (retrouvé automatiquement)" />
+    <button class="sec" id="applyBtn">↻ Régénérer avec cette valeur</button>
+
+    <div class="tabs">
+      <button id="tabQr" class="active">QR Code</button>
+      <button id="tabBc">Code-barres</button>
+      <button id="tabDm">DataMatrix</button>
+    </div>
+    <select id="bcFormat">
+      <option value="CODE128">Code 128 (le plus universel)</option>
+      <option value="EAN13">EAN-13 (13 chiffres, produits)</option>
+      <option value="EAN8">EAN-8 (8 chiffres)</option>
+      <option value="ITF14">ITF-14 / EAN-14 (14 chiffres, cartons)</option>
+      <option value="UPC">UPC-A (12 chiffres)</option>
+      <option value="CODE39">Code 39 (chiffres + MAJUSCULES)</option>
+      <option value="ITF">ITF 2/5 (nombre pair de chiffres)</option>
+    </select>
+    <div class="hint">Autres types lisibles à la caméra : QR Code, DataMatrix, PDF417, Code 93, Codabar, UPC-E.</div>
+    <div id="output"></div>
+    <button id="fullBtn">⤢ Afficher en plein écran</button>
+    <button class="sec" id="pngBtn"> Télécharger en image (PNG)</button>
+    <button class="sec" id="printBtn">️ Imprimer / PDF</button>
+    <button class="sec" id="clearBtn">️ Effacer ce code et le texte</button>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:6px"> Derniers codes</div>
+    <ul id="history"></ul>
+    <div class="hint" id="emptyHist">Aucun code pour l'instant.</div>
+    <div class="hint" style="margin-top:8px"> Confidentialité : vos codes restent enregistrés uniquement sur cet appareil — jamais envoyés sur Internet — pour ne rien perdre en cas de fermeture accidentelle. « Tout effacer » supprime tout immédiatement.</div>
+    <button class="sec" id="wipeBtn" style="margin-top:8px">粒 Tout effacer</button>
+  </div>
+
+  <div id="printArea">
+    <div class="plabel" id="printVal"></div>
+    <div id="printCode"></div>
+    <div class="ptitle" id="printTitle"></div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+(function () {
+  var video = document.getElementById('video');
+  var startBtn = document.getElementById('startBtn');
+  var photoBtn = document.getElementById('photoBtn');
+  var photoInput = document.getElementById('photoInput');
+  var statusEl = document.getElementById('scanStatus');
+  var resultEl = document.getElementById('result');
+  var valEl = document.getElementById('val');
+  var editVal = document.getElementById('editVal');
+  var applyBtn = document.getElementById('applyBtn');
+  var output = document.getElementById('output');
+  var tabQr = document.getElementById('tabQr');
+  var tabBc = document.getElementById('tabBc');
+  var tabDm = document.getElementById('tabDm');
+  var bcFormat = document.getElementById('bcFormat');
+  var genFormat = document.getElementById('genFormat');
+  var scanFormatSel = document.getElementById('scanFormat');
+  var repairNote = document.getElementById('repairNote');
+  var sdInfo = document.getElementById('sdInfo');
+  var colorNote = document.getElementById('colorNote');
+  var genColor = document.getElementById('genColor');
+  try { var gc0 = localStorage.getItem('genColor3'); if (gc0) genColor.value = gc0; } catch (eGC) {}
+  genColor.addEventListener('input', function () {
+    try { localStorage.setItem('genColor3', genColor.value); } catch (eGS) {}
+    renderOutput();
+  });
+  var fullBtn = document.getElementById('fullBtn');
+  var pngBtn = document.getElementById('pngBtn');
+  var printBtn = document.getElementById('printBtn');
+  var historyEl = document.getElementById('history');
+  var emptyHist = document.getElementById('emptyHist');
+  var closeBtn = document.getElementById('closeBtn');
+
+  var stream = null, rafId = null, detector = null, running = false;
+  var mode = 'qr', lastResult = null, lastVal = null, cooldown = 0; /* mode : 'qr' | 'bc' | 'dm' */
+  var hist = [];
+  var modeSwitch = document.getElementById('modeSwitch');
+  var lblPhoto = document.getElementById('lblPhoto');
+  var lblVollee = document.getElementById('lblVollee');
+  var scanMode = 'photo'; /* 'photo' = arrêt auto après capture (PAR DÉFAUT) | 'vollee' = scan continu */
+  var scanFmt = 'auto'; /* type de code recherché : 'auto' ou QR_CODE/EAN_13/EAN_8/UPC_A/CODE_128/CODE_39/ITF/DATA_MATRIX */
+  var pendingNote = ''; /* message affiché sous le code détecté (réparation, avertissement) */
+  var LS_KEY = 'scanregen3_state_v1';
+  var torchOn = false, torchMode = 'auto', torchSupported = false; /* lampe flash : allumée ? + mode choisi (on/off/auto) + disponible ? */
+
+  /* ===== SAUVEGARDE LOCALE (sur l'appareil uniquement) ===== */
+  function saveState() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        lastResult: lastResult, mode: mode, bc: bcFormat.value,
+        hist: hist.slice(0, 30), scanMode: scanMode, torch: torchMode,
+        sf: scanFmt, gf: genFormat.value
+      }));
+    } catch (e) {}
+  }
+  function loadState() {
+    try {
+      var s = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      if (!s) return;
+      if (s.scanMode === 'photo' || s.scanMode === 'vollee') scanMode = s.scanMode;
+      if (s.torch === 'on' || s.torch === 'off' || s.torch === 'auto') torchMode = s.torch;
+      if (s.torch === 'on') torchOn = true;
+      if (Array.isArray(s.hist)) hist = s.hist;
+      if (s.bc) for (var i = 0; i < bcFormat.options.length; i++)
+        if (bcFormat.options[i].value === s.bc) { bcFormat.selectedIndex = i; break; }
+      if (s.mode === 'qr' || s.mode === 'bc' || s.mode === 'dm') mode = s.mode;
+      if (s.lastResult) lastResult = s.lastResult;
+      if (s.sf) { scanFmt = s.sf; scanFormatSel.value = s.sf; }
+      if (s.gf) { genFormat.value = s.gf; }
+    } catch (e) {}
+  }
+  function updateModeUI() {
+    modeSwitch.checked = (scanMode === 'photo');
+    lblPhoto.className = 'swLbl' + (scanMode === 'photo' ? ' actif' : '');
+    lblVollee.className = 'swLbl' + (scanMode === 'vollee' ? ' actif' : '');
+  }
+  modeSwitch.addEventListener('change', function () {
+    scanMode = modeSwitch.checked ? 'photo' : 'vollee';
+    updateModeUI(); saveState();
+    statusEl.className = 'hint';
+    statusEl.textContent = scanMode === 'photo'
+      ? 'Mode photo unique : la caméra s’arrêtera automatiquement après chaque code capturé.'
+      : 'Mode scan à la volée : la caméra continue et enchaîne les scans automatiquement.';
+  });
+
+  /* ===== OCR : LIRE LES CHIFFRES ET LETTRES IMPRIMÉS À CÔTÉ DU CODE =====
+     (comme le numéro écrit à côté d'un DataMatrix sur un timbre ou un recommandé).
+     Moteur Tesseract.js : fonctionne sur l'appareil, rien n'est envoyé sur Internet.
+     La 1re lecture nécessite Internet (téléchargement du moteur), ensuite en cache. */
+  var ocrBtn = document.getElementById('ocrBtn');
+  var ocrBusy = false, ocrEnginePromise = null;
+
+  function ocrAvailable() { return typeof window.Tesseract !== 'undefined'; }
+  function getOcrEngine() {
+    if (!ocrAvailable()) return null;
+    if (!ocrEnginePromise) {
+      try { ocrEnginePromise = window.Tesseract.createWorker('eng', 1, { logger: function () {} }); }
+      catch (e) { ocrEnginePromise = null; }
+    }
+    return ocrEnginePromise;
+  }
+
+  /* Prépare une image (canvas) lisible pour l'OCR : niveaux de gris renforcés, gros contraste */
+  /* Prépare une image pour l'OCR : gris renforcé + seuils.
+     zone facultative = { x, y, w, h } en fractions (0-1) pour recadrer
+     (ex. moitié basse de l'étiquette, là où les chiffres sont imprimés). */
+  function ocrPrepareCanvas(src, zone) {
+    var W = src.videoWidth || src.naturalWidth || src.width;
+    var H = src.videoHeight || src.naturalHeight || src.height;
+    if (!W || !H) return null;
+    var sx = 0, sy = 0, sw = W, sh = H;
+    if (zone) {
+      sx = Math.max(0, Math.min(W - 2, Math.round((zone.x || 0) * W)));
+      sy = Math.max(0, Math.min(H - 2, Math.round((zone.y || 0) * H)));
+      sw = Math.max(16, Math.min(W - sx, Math.round((zone.w || 1) * W)));
+      sh = Math.max(16, Math.min(H - sy, Math.round((zone.h || 1) * H)));
+    }
+    var scale = zone
+      ? Math.min(4, Math.max(2, 1400 / Math.max(sw, sh)))
+      : Math.min(2, Math.max(1, 1400 / Math.max(W, H)));
+    var c = document.createElement('canvas');
+    c.width = Math.round(sw * scale); c.height = Math.round(sh * scale);
+    var ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    try {
+      var d = ctx.getImageData(0, 0, c.width, c.height);
+      for (var i = 0; i < d.data.length; i += 4) {
+        var g = (d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11);
+        var v = g < 110 ? 0 : (g > 170 ? 255 : g);
+        d.data[i] = d.data[i + 1] = d.data[i + 2] = v;
+      }
+      ctx.putImageData(d, 0, 0);
+    } catch (e) {}
+    return c;
+  }
+
+  async function ocrReadText(src) {
+    if (!ocrAvailable()) return null;
+    var c = ocrPrepareCanvas(src);
+    if (!c) return null;
+    try {
+      var worker = await getOcrEngine();
+      if (!worker) return null;
+      var res = await worker.recognize(c);
+      return (res && res.data && res.data.text) ? res.data.text : null;
+    } catch (e) { return null; }
+  }
+
+  /* OCR renforcé : on lit l'image ENTIRE puis, si rien n'est reconnu, on
+     réessaie sur des ZOOMS de l'étiquette (moitié basse où les chiffres sont
+     souvent imprimés, puis moitiés gauche/droite) : les petits numéros
+     deviennent assez gros pour être lus. Dernier essai : on ne garde que
+     les chiffres et MAJUSCULES pour aider la lecture. */
+  async function ocrReadTextDeep(src) {
+    if (!ocrAvailable()) return null;
+    var zones = [null, { x: 0, y: 0.45, w: 1, h: 0.55 }, { x: 0, y: 0, w: 0.5, h: 1 }, { x: 0.5, y: 0, w: 0.5, h: 1 }];
+    var texts = [];
+    for (var zi = 0; zi < zones.length; zi++) {
+      var c = ocrPrepareCanvas(src, zones[zi]);
+      if (!c) continue;
+      try {
+        var worker = await getOcrEngine();
+        if (!worker) return null;
+        var res = await worker.recognize(c);
+        if (res && res.data && res.data.text) {
+          texts.push(res.data.text);
+          var quick = ocrCandidates(res.data.text);
+          if (quick.length && quick[0].replace(/\D/g, '').length >= 10) break;
+        }
+      } catch (e) {}
+    }
+    try {
+      var worker2 = await getOcrEngine();
+      if (worker2 && worker2.setParameters) {
+        await worker2.setParameters({ tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ ' });
+        var c2 = ocrPrepareCanvas(src, null);
+        var res2 = await worker2.recognize(c2);
+        await worker2.setParameters({ tessedit_char_whitelist: '' });
+        if (res2 && res2.data && res2.data.text) texts.push(res2.data.text);
+      }
+    } catch (e) {}
+    return texts.length ? texts.join('\n') : null;
+  }
+
+
+  /* ====== RECONSTITUTION D'UN CODE-BARRES DÉCHIRÉ EN DEUX MORCEAUX (EAN-13 / Code 128) ====== */
+  var tornApi = (function () {
+    var C128W = ["212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221","223211","221132","221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321","112313","132113","132311","211313","231113","231311","112133","112331","132131","113123","113321","133121","313121","211331","231131","213113","213311","213131","311123","311321","331121","312113","312311","332111","314111","221411","431111","111224","111422","121124","121421","141122","141221","112214","112412","122114","122411","142112","142211","241211","221114","413111","241112","134111","111242","121142","121241","114212","124112","124211","411212","421112","421211","212141","214121","412121","111143","111341","131141","114113","114311","411113","411311","113141","114131","311141","411131",'211412','211214','211232','2331112'];
+    function expw(w) { var s = '', b = 1; for (var i = 0; i < w.length; i++) { var n = +w.charAt(i); for (var j = 0; j < n; j++) { s += b ? '1' : '0'; } b = !b; } return s; }
+    var PAT = [], PATMAP = {};
+    for (var pi = 0; pi < C128W.length; pi++) { var pb = expw(C128W[pi]); PAT.push(pb); if (pi <= 102) PATMAP[pb] = pi; }
+    var STOPP = PAT[106];
+    var EANL = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+    var EANG = ['0100111','0111001','0110011','0011011','0100001','0011101','0010001','0000101','0001001','0010111'];
+    var EANR = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
+    var EANML = {}, EANMG = {}, EANMR = {};
+    for (var e0 = 0; e0 < 10; e0++) { EANML[EANL[e0]] = e0; EANMG[EANG[e0]] = e0; EANMR[EANR[e0]] = e0; }
+    var EANPAR = ['LLLLLL','LLGLGG','LLGGLG','LLLGGG','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+    function fPre(p, f) { return !f || p.substr(0, f.length) === f; }
+    function fSuf(p, f) { return !f || p.substr(p.length - f.length) === f; }
+    function revstr(s) { return s.split('').reverse().join(''); }
+    function eanCheck(d) { var s = 0; for (var i = 0; i < 12; i++) s += d[i] * (i % 2 ? 3 : 1); return (10 - s % 10) % 10 === d[12]; }
+    function tornEanFront(A) {
+      var best = null, lim = Math.min(A.length - 3, 30);
+      for (var o = 0; o <= lim; o++) {
+        if (A.substr(o, 3) !== '101') continue;
+        var i = o + 3, digits = [], classes = [];
+        for (var k = 0; k < 6; k++) {
+          var s = A.substr(i, 7);
+          if (s.length < 7) break;
+          var dL = EANML[s], dG = EANMG[s];
+          if (dL === undefined && dG === undefined) break;
+          if (dL !== undefined) { digits.push(dL); classes.push('L'); } else { digits.push(dG); classes.push('G'); }
+          i += 7;
+        }
+        if (!digits.length) continue;
+        var frag = A.substr(i);
+        if (frag.length >= 5 && frag.substr(0, 5) === '01010') frag = frag.substr(5);
+        else if (frag === '0101') frag = '';
+        if (frag.length > 6) frag = frag.substr(0, 6);
+        if (!best || digits.length > best.digits.length) best = { digits: digits, classes: classes, frag: frag };
+      }
+      return best;
+    }
+    function tornEanBack(B) {
+      var best = null, n = B.length;
+      for (var o = 0; o <= 4 && n - 3 - o >= 0; o++) {
+        if (B.substr(n - 3 - o, 3) !== '101') continue;
+        var i = n - 3 - o, digits = [], early = false;
+        for (var k = 0; k < 6; k++) {
+          i -= 7;
+          if (i < 0) { early = true; break; }
+          var s = B.substr(i, 7);
+          var dR = EANMR[s];
+          if (dR === undefined) { early = true; break; }
+          digits.push(dR);
+        }
+        if (!digits.length) continue;
+        var fragTo = early ? i + 7 : i;
+        var frag = fragTo > 0 ? B.substr(0, fragTo) : '';
+        if (frag.length >= 5 && frag.substr(frag.length - 5) === '01010') frag = frag.substr(0, frag.length - 5);
+        else if (frag.length === 4 && frag === '0101') frag = '';
+        if (frag.length > 6) frag = frag.substr(frag.length - 6);
+        if (!best || digits.length > best.digits.length) best = { digits: digits, frag: frag };
+      }
+      return best;
+    }
+    function tornEanSols(F, Bk, fa, fb) {
+      var a = 6 - F.digits.length, b = 6 - Bk.digits.length;
+      if (a + b > 2) return null;
+      var sols = {};
+      for (var d1 = 0; d1 < 10; d1++) {
+        var par = EANPAR[d1], okc = true;
+        for (var ci = 0; ci < F.classes.length; ci++) if (par.charAt(ci) !== F.classes[ci]) { okc = false; break; }
+        if (!okc) continue;
+        var rec = function (k, lu, ru) {
+          if (k === a + b) {
+            var digits = [d1].concat(F.digits, lu, ru, Bk.digits.slice().reverse());
+            if (!eanCheck(digits)) return;
+            sols[digits.join('')] = 1;
+            return;
+          }
+          if (k < a) {
+            for (var dg = 0; dg < 10; dg++) {
+              var pat = par.charAt(F.digits.length + k) === 'L' ? EANL[dg] : EANG[dg];
+              if (k === 0 && fa && !fPre(pat, fa)) continue;
+              if (b === 0 && k === a - 1 && fb && !fSuf(pat, fb)) continue;
+              rec(k + 1, lu.concat([dg]), ru);
+            }
+          } else {
+            var kk = k - a;
+            for (var dg2 = 0; dg2 < 10; dg2++) {
+              if (a === 0 && kk === 0 && fa && !fPre(EANR[dg2], fa)) continue;
+              if (kk === b - 1 && fb && !fSuf(EANR[dg2], fb)) continue;
+              rec(k + 1, lu, ru.concat([dg2]));
+            }
+          }
+        };
+        rec(0, [], []);
+      }
+      var keys = [];
+      for (var kk2 in sols) keys.push(kk2);
+      return keys;
+    }
+    function tornEanBridge(F, Bk) {
+      var sAmax = F.frag ? 3 : 0, sBmax = Bk.frag ? 3 : 0;
+      for (var sA = 0; sA <= sAmax; sA++) {
+        var fa = F.frag ? F.frag.substr(0, F.frag.length - sA) : '';
+        if (F.frag && !fa) break;
+        for (var sB = 0; sB <= sBmax; sB++) {
+          var fb = Bk.frag ? Bk.frag.substr(sB) : '';
+          if (Bk.frag && !fb) break;
+          var keys = tornEanSols(F, Bk, fa, fb);
+          if (keys === null) return null;
+          if (keys.length === 1) return keys[0];
+          if (keys.length > 1) return null;
+        }
+      }
+      return null;
+    }
+    function tornTryEan(A, B) {
+      var F = tornEanFront(A);
+      if (!F || !F.digits.length) return null;
+      var Bk = B ? tornEanBack(B) : tornEanBack(A);
+      if (!Bk) return null;
+      var v = tornEanBridge(F, Bk);
+      return v ? { value: v, format: 'EAN13', how: 'EAN-13' } : null;
+    }
+    function tornVal(s) { var v = PATMAP[s]; return v === undefined ? -1 : v; }
+    function tornC128Front(A) {
+      var best = null;
+      for (var si = 105; si >= 103; si--) {
+        var pat = PAT[si];
+        for (var o = 0; o + 11 <= Math.min(A.length, 31); o++) {
+          if (A.substr(o, 11) !== pat) continue;
+          var i = o + 11, vals = [];
+          for (var k = 0; k < 80; k++) {
+            var s = A.substr(i, 11);
+            if (s.length < 11) { if (!best || vals.length > best.vals.length) best = { start: si, vals: vals, frag: s.length > 10 ? s.substr(0, 10) : s }; break; }
+            var v = tornVal(s);
+            if (v < 0 || v >= 103) { if (!best || vals.length > best.vals.length) best = { start: si, vals: vals, frag: s.length > 10 ? s.substr(0, 10) : s }; break; }
+            vals.push(v); i += 11;
+          }
+        }
+      }
+      return best;
+    }
+    function tornC128Back(B) {
+      var best = null, n = B.length;
+      for (var o = 0; o <= 20 && n - 13 - o >= 0; o++) {
+        if (B.substr(n - 13 - o, 13) !== STOPP) continue;
+        var i = n - 13 - o, vals = [], early = false;
+        for (var k = 0; k < 80; k++) {
+          i -= 11;
+          if (i < 0) { early = true; break; }
+          var s = B.substr(i, 11);
+          var v = tornVal(s);
+          if (v < 0 || v >= 103) { early = true; break; }
+          vals.push(v);
+        }
+        if (!vals.length) continue;
+        var fragTo = early ? i + 11 : i;
+        var frag = fragTo > 0 ? B.substr(0, fragTo) : '';
+        if (frag.length > 10) frag = frag.substr(frag.length - 10);
+        if (!best || vals.length > best.vals.length) best = { vals: vals, frag: frag };
+      }
+      return best;
+    }
+    function tornC128Text(start, vals) {
+      if (start === 105) {
+        if (vals.length % 2) return null;
+        var s = '';
+        for (var i = 0; i < vals.length; i++) { if (vals[i] > 99) return null; var t = '' + vals[i]; if (t.length < 2) t = '0' + t; s += t; }
+        return s;
+      }
+      if (start === 104) {
+        var s2 = '';
+        for (var j = 0; j < vals.length; j++) { if (vals[j] > 94) return null; s2 += String.fromCharCode(vals[j] + 32); }
+        return s2;
+      }
+      return null;
+    }
+    function tornInv(k) { k = ((k % 103) + 103) % 103; if (!k) return 0; for (var m = 1; m < 103; m++) if ((k * m) % 103 === 1) return m; return 0; }
+    function tornC128Bridge(A, F, B, Bk) {
+      var fragA = F.frag;
+      if (!B) {
+        var okS = false;
+        for (var o = 0; o <= 20; o++) { if (A.length - 13 - o >= 0 && A.substr(A.length - 13 - o, 13) === STOPP) { okS = true; break; } }
+        if (!okS || !F.vals.length) return null;
+        var vals = F.vals.slice();
+        var chk = vals.pop();
+        var txt = tornC128Text(F.start, vals);
+        if (txt === null) return null;
+        var s = F.start;
+        for (var k = 0; k < vals.length; k++) s += vals[k] * (k + 1);
+        if (s % 103 !== chk) return null;
+        return txt;
+      }
+      if (!Bk) return null;
+      var fragB = Bk.frag;
+      var checkKnown = Bk.vals.length > 0;
+      var chk = checkKnown ? Bk.vals[0] : -1;
+      var bvRest = Bk.vals.slice(1).reverse();
+      var sAmax = fragA ? 3 : 0, sBmax = fragB ? 3 : 0;
+      for (var sA = 0; sA <= sAmax; sA++) {
+        var fa = fragA ? fragA.substr(0, fragA.length - sA) : '';
+        if (fragA && !fa) break;
+        for (var sB = 0; sB <= sBmax; sB++) {
+          var fb = fragB ? fragB.substr(sB) : '';
+          if (fragB && !fb) break;
+          for (var u = 0; u <= 2; u++) {
+            var tot = u + (checkKnown ? 0 : 1);
+            if (tot > 2) break;
+            if (u === 0) {
+              var payload0 = F.vals.concat(bvRest);
+              var t0 = tornC128Text(F.start, payload0);
+              if (t0 === null) continue;
+              var s0 = F.start;
+              for (var k0 = 0; k0 < payload0.length; k0++) s0 += payload0[k0] * (k0 + 1);
+              if (checkKnown) { if (s0 % 103 === chk) return t0; }
+              else { if (fSuf(PAT[s0 % 103], fb)) return t0; }
+              continue;
+            }
+            if (u === 1) {
+              var kx = F.vals.length + 1, ix = tornInv(kx);
+              if (!ix) continue;
+              if (checkKnown) {
+                var known = 0;
+                for (var k1 = 0; k1 < F.vals.length; k1++) known += F.vals[k1] * (k1 + 1);
+                for (var k2 = 0; k2 < bvRest.length; k2++) known += bvRest[k2] * (F.vals.length + 2 + k2);
+                var base = (chk - F.start - known) % 103; if (base < 0) base += 103;
+                var cand = (base * ix) % 103;
+                if (cand > 102) continue;
+                if (!fPre(PAT[cand], fa) || !fSuf(PAT[cand], fb)) continue;
+                var pay1 = F.vals.concat([cand], bvRest);
+                var t1 = tornC128Text(F.start, pay1);
+                if (t1 !== null) return t1;
+              } else {
+                var sols1 = {};
+                for (var c1 = 0; c1 <= 102; c1++) {
+                  if (!fPre(PAT[c1], fa)) continue;
+                  var pay = F.vals.concat([c1], bvRest);
+                  var tt = tornC128Text(F.start, pay);
+                  if (tt === null) continue;
+                  var ss = F.start;
+                  for (var q = 0; q < pay.length; q++) ss += pay[q] * (q + 1);
+                  if (!fSuf(PAT[ss % 103], fb)) continue;
+                  sols1[tt] = 1;
+                }
+                var keys1 = []; for (var q2 in sols1) keys1.push(q2);
+                if (keys1.length === 1) return keys1[0];
+                if (keys1.length > 1) return null;
+              }
+              continue;
+            }
+            if (!checkKnown) break;
+            var kx1 = F.vals.length + 1, kx2 = kx1 + 1, ix2 = tornInv(kx2);
+            if (!ix2) continue;
+            var known2 = 0;
+            for (var k3 = 0; k3 < F.vals.length; k3++) known2 += F.vals[k3] * (k3 + 1);
+            for (var k4 = 0; k4 < bvRest.length; k4++) known2 += bvRest[k4] * (kx2 + 1 + k4);
+            var sols2 = {};
+            for (var v1 = 0; v1 <= 102; v1++) {
+              if (!fPre(PAT[v1], fa)) continue;
+              var t2 = (chk - F.start - known2 - v1 * kx1) % 103; if (t2 < 0) t2 += 103;
+              var r2 = (t2 * ix2) % 103;
+              if (r2 > 102) continue;
+              if (!fSuf(PAT[r2], fb)) continue;
+              var pay2 = F.vals.concat([v1, r2], bvRest);
+              var tx2 = tornC128Text(F.start, pay2);
+              if (tx2 === null) continue;
+              sols2[tx2] = 1;
+            }
+            var keys2 = []; for (var q3 in sols2) keys2.push(q3);
+            if (keys2.length === 1) return keys2[0];
+            if (keys2.length > 1) return null;
+          }
+        }
+      }
+      return null;
+    }
+    function tornTryDir(A, B) {
+      var r = tornTryEan(A, B);
+      if (r) return r;
+      var F = tornC128Front(A);
+      if (!F || (!F.vals.length && F.frag.length < 6)) return null;
+      var Bk = B ? tornC128Back(B) : null;
+      if (B && !Bk) return null;
+      var txt = tornC128Bridge(A, F, B, Bk);
+      return txt ? { value: txt, format: 'CODE128', how: 'Code 128' } : null;
+    }
+    function tornTry(A, B) {
+      return tornTryDir(A, B) || (B ? tornTryDir(revstr(B), revstr(A)) : tornTryDir(revstr(A), ''));
+    }
+    function tornClassify(P, mw, heads, tails) {
+      var f = tornEanFront(P);
+      var isHead = !!(f && f.digits.length >= 1);
+      if (!isHead) { var c = tornC128Front(P); isHead = !!(c && (c.vals.length >= 1 || c.frag.length >= 6)); }
+      var bk = tornEanBack(P);
+      var isTail = !!(bk && bk.digits.length >= 2);
+      if (!isTail) { var cb = tornC128Back(P); isTail = !!(cb && cb.vals.length >= 1); }
+      var obj = { b: P, mw: mw };
+      if (isHead && heads.length < 40) heads.push(obj);
+      if (isTail && tails.length < 40) tails.push(obj);
+    }
+    function tornFromImage(img) {
+      try {
+        var iw = img.width || 300, ih = img.height || 300;
+        var ratio = Math.min(1, 900 / Math.max(iw, ih));
+        var w = Math.max(40, Math.round(iw * ratio)), h = Math.max(40, Math.round(ih * ratio));
+        var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        var cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, w, h);
+        var dd = cx.getImageData(0, 0, w, h).data;
+        var n = w * h, gr = new Array(n), i;
+        for (i = 0; i < n; i++) gr[i] = (dd[i * 4] * 299 + dd[i * 4 + 1] * 587 + dd[i * 4 + 2] * 114) / 1000;
+        var hist = new Array(256); for (i = 0; i < 256; i++) hist[i] = 0;
+        for (i = 0; i < n; i++) { var gi = gr[i]; gi = gi < 0 ? 0 : gi > 255 ? 255 : gi; hist[gi | 0]++; }
+        var sum = 0; for (i = 0; i < 256; i++) sum += i * hist[i];
+        var sumB = 0, wB = 0, bestv = 0, th = 128;
+        for (i = 0; i < 256; i++) {
+          wB += hist[i]; if (!wB) continue;
+          sumB += i * hist[i];
+          var mB = sumB / wB, mF = (sum - sumB) / (n - wB);
+          var v = wB * (n - wB) * (mB - mF) * (mB - mF);
+          if (v > bestv) { bestv = v; th = i; }
+        }
+        var bin = new Array(n);
+        for (i = 0; i < n; i++) bin[i] = gr[i] < th ? 1 : 0;
+        var res = null;
+        for (var ori = 0; ori < 2 && !res; ori++) {
+          var nLines = ori === 0 ? h : w, segLen = ori === 0 ? w : h;
+          var heads = [], tails = [], seen = {};
+          for (var li = 0; li < nLines; li += 2) {
+            var runs = [], cur = -1, cnt = 0, x;
+            for (x = 0; x < segLen; x++) {
+              var v2 = ori === 0 ? bin[li * w + x] : bin[x * w + li];
+              if (v2 === cur) cnt++;
+              else { if (cur >= 0) runs.push([cur, cnt]); cur = v2; cnt = 1; }
+            }
+            if (cur >= 0) runs.push([cur, cnt]);
+            while (runs.length && runs[0][0] === 0) runs.shift();
+            while (runs.length && runs[runs.length - 1][0] === 0) runs.pop();
+            var trans = 0;
+            for (var t = 1; t < runs.length; t++) if (runs[t][0] !== runs[t - 1][0]) trans++;
+            if (runs.length < 8 || trans < 7) continue;
+            var mw = Infinity;
+            for (var r = 0; r < runs.length; r++) if (runs[r][0] === 1 && runs[r][1] >= 2 && runs[r][1] < mw) mw = runs[r][1];
+            if (!isFinite(mw)) continue;
+            var pieces = [], cur2 = '';
+            for (var r2 = 0; r2 < runs.length; r2++) {
+              var val = runs[r2][0], c = Math.round(runs[r2][1] / mw);
+              if (c < 1) c = 1;
+              if (val === 0 && c > 5) { if (cur2) { pieces.push(cur2); cur2 = ''; } continue; }
+              for (var q = 0; q < c; q++) cur2 += val ? '1' : '0';
+            }
+            if (cur2) pieces.push(cur2);
+            for (var p = 0; p < pieces.length; p++) {
+              var P = pieces[p];
+              if (P.length < 25 || P.length > 400) continue;
+              if (seen[P]) continue;
+              seen[P] = 1;
+              tornClassify(P, mw, heads, tails);
+              var rv = revstr(P);
+              if (rv !== P && !seen[rv]) { seen[rv] = 1; tornClassify(rv, mw, heads, tails); }
+            }
+          }
+          for (var a = 0; a < heads.length && !res; a++) {
+            for (var b = 0; b < tails.length; b++) {
+              if (tails[b] === heads[a]) { res = tornTry(heads[a].b, ''); break; }
+            }
+          }
+          for (var a2 = 0; a2 < heads.length && !res; a2++) {
+            for (var b2 = 0; b2 < tails.length && !res; b2++) {
+              if (tails[b2] === heads[a2]) continue;
+              var mx = Math.max(heads[a2].mw, tails[b2].mw);
+              if (Math.abs(heads[a2].mw - tails[b2].mw) / mx > 0.45) continue;
+              res = tornTry(heads[a2].b, tails[b2].b);
+            }
+          }
+        }
+        return res;
+      } catch (e) { return null; }
+    }
+    return { try: tornTry, fromImage: tornFromImage, PAT: PAT, EANL: EANL, EANG: EANG, EANR: EANR, EANPAR: EANPAR };
+  })();
+  var tornFromImage = tornApi.fromImage;
+
+  /* Extrait les numéros/lettres candidats du texte imprimé.
+     Exemples reconnus : 1A 123 456 789 0, RR123456789FR, 5901234123457, 8H KLMN 12345 */
+  function ocrCandidates(text) {
+    if (!text) return [];
+    /* symboles acceptés dans les numéros imprimés : @ # ? & ® % £ π ∆ ✓ [ ] etc. */
+    var SYM = '#?&@%£®✓[]§$€π∆*=+/:.-';
+    var SYMRE = /[#?&@%£®✓\[\]§$€π∆*+=:/.\-]/;
+    var t = text.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ');
+    var seen = {}, out = [];
+    function push(v) {
+      v = String(v || '').trim();
+      var alnumLen = v.replace(/[^A-Z0-9]/g, '').length;
+      if (v && !seen[v] && (v.replace(/\D/g, '').length >= 7 || (alnumLen >= 6 && SYMRE.test(v)))) { seen[v] = 1; out.push(v); }
+    }
+    /* 0) morceaux contenant des symboles : conservés tels quels (Code 128 sait les encoder) */
+    var SYMESC = SYM.replace(/[.\-\[\]\^$*+?(){}|]/g, '\\$&');
+    var ts = text.toUpperCase().replace(new RegExp('[^A-Z0-9' + SYMESC + ' ]', 'g'), ' ').replace(/\s+/g, ' ');
+    ts.split(' ').forEach(function (tok) {
+      if (tok.length >= 6 && SYMRE.test(tok) && tok.replace(/[^A-Z0-9]/g, '').length >= 3) push(tok);
+    });
+    /* 1) formats postaux : 2 lettres + 9 chiffres (+ 2 lettres), ex. RR123456789FR */
+    var postal = t.match(/(^|[^A-Z])([A-Z]{2}\s?\d{3}\s?\d{3}\s?\d{3}(\s?[A-Z]{2})?)(?![A-Z0-9])/g) || [];
+    postal.forEach(function (m) { push(m.replace(/[^A-Z0-9]/g, '')); });
+    /* 2) étiquettes colis : 1A 123 456 789 0 (chiffre+lettre ou lettre+chiffre) */
+    var parcel = t.match(/(^|[^A-Z0-9])(\d[A-Z]|[A-Z]\d)\s?\d{3}\s?\d{3}\s?\d{3}(\s?\d)?(?![0-9])/g) || [];
+    parcel.forEach(function (m) { push(m.replace(/[^A-Z0-9]/g, '')); });
+    /* 3) suites alphanumériques assez longues, sans espace */
+    var alnum = t.match(/[A-Z0-9]{8,20}/g) || [];
+    alnum.forEach(function (m) { push(m); });
+    /* 4) suites de chiffres éventuellement espacées */
+    var digits = t.match(/\d[\d ]{9,20}\d/g) || [];
+    digits.forEach(function (m) { push(m.replace(/\s+/g, '')); });
+    /* les plus complets d'abord, et on retire ceux entièrement contenus dans un autre */
+    out.sort(function (a, b) { return b.length - a.length; });
+    var final = [];
+    out.forEach(function (c) {
+      var isSub = final.some(function (f) { return f.indexOf(c) !== -1 || c.indexOf(f) !== -1; });
+      if (!isSub) final.push(c);
+    });
+    return final.slice(0, 6);
+  }
+
+  /* Type de code le plus probable pour un numéro lu en texte imprimé :
+     priorité au type ciblé dans « Type de code à lire », sinon on déduit du
+     numéro (13 chiffres → EAN-13, 14 → ITF-14, 12 → UPC, 8 → EAN-8,
+     lettres/symboles ASCII → Code 128, symboles spéciaux π ∆ £ ® ✓ → QR Code).
+     Le type reste modifiable dans la liste de la carte résultat. */
+  function ocrGuessFormat(value) {
+    var v = String(value || '').replace(/\s+/g, '');
+    if (typeof scanFmt === 'string' && scanFmt && scanFmt !== 'auto') {
+      if (scanFmt === 'QR_CODE') return 'QR_CODE';
+      if (scanFmt === 'DATA_MATRIX') return 'DATA_MATRIX';
+      var m = FORMAT_MAP[scanFmt];
+      if (m) return m;
+    }
+    var d = v.replace(/\D/g, '');
+    if (v === d) {
+      if (d.length === 13) return 'EAN13';
+      if (d.length === 14) return 'ITF14';
+      if (d.length === 12) return 'UPC';
+      if (d.length === 8) return 'EAN8';
+      return 'CODE128';
+    }
+    /* Code 128 encode toutes les lettres, chiffres et symboles ASCII ;
+       pour les symboles non ASCII (π ∆ £ ® ✓ …), seul le QR Code convient */
+    if (/^[\x20-\x7E]+$/.test(v)) return 'CODE128';
+    return 'QR_CODE';
+  }
+
+  /* Concordance entre le contenu du code lu et le texte imprimé à côté :
+     renvoie 'ok' | 'ecart' | 'inconnu' (texte illisible ou absent) */
+  function ocrConcordance(codeValue, ocrText) {
+    if (!ocrText) return 'inconnu';
+    var cands = ocrCandidates(ocrText);
+    if (!cands.length) return 'inconnu';
+    var norm = function (s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+    var digits = function (s) { return String(s || '').replace(/\D/g, ''); };
+    var target = norm(codeValue), tdig = digits(codeValue);
+    for (var i = 0; i < cands.length; i++) {
+      if (String(cands[i]).toUpperCase() === String(codeValue).toUpperCase()) return 'ok';
+      var c = norm(cands[i]);
+      if (c === target) return 'ok';
+      if (digits(c).length >= 10 && tdig.length >= 10 && digits(c).indexOf(tdig) !== -1) return 'ok';
+      if (digits(c).length >= 10 && tdig.length >= 10 && tdig.indexOf(digits(c)) !== -1) return 'ok';
+    }
+    return 'ecart';
+  }
+
+  /* ===== RÉPARATION CROISÉE : quand le code lu est incomplet ou mal lu,
+     on le répare avec le texte imprimé à côté (OCR), à condition que le
+     candidat du texte passe la clé de contrôle ET soit très proche du
+     code lu (1 ou 2 chiffres d'écart seulement) — jamais de réparation au hasard. ===== */
+  function levD(a, b) { /* distance de Levenshtein */
+    var m = a.length, n = b.length;
+    if (m === 0) return n; if (n === 0) return m;
+    var prev = new Array(n + 1), cur = new Array(n + 1), i, j;
+    for (j = 0; j <= n; j++) prev[j] = j;
+    for (i = 1; i <= m; i++) {
+      cur[0] = i;
+      for (j = 1; j <= n; j++) {
+        var cost = (a[i - 1] === b[j - 1]) ? 0 : 1;
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      }
+      var tmp = prev; prev = cur; cur = tmp;
+    }
+    return prev[n];
+  }
+  function crossRepair(value, ocrText, format) {
+    if (!ocrText || !value) return null;
+    var mapped = FORMAT_MAP[format] || (format === 'QR_CODE' || format === 'qr_code' ? 'QR_CODE'
+      : (format === 'DATA_MATRIX' || format === 'data_matrix' ? 'DATA_MATRIX' : null));
+    var digits0 = String(value).replace(/\D/g, '');
+    if (!mapped && digits0.length >= 7 && digits0.length <= 14 && digits0 === value)
+      mapped = digits0.length <= 8 ? 'EAN8' : (digits0.length === 14 ? 'ITF14' : 'EAN13');
+    if (mapped !== 'EAN13' && mapped !== 'EAN8' && mapped !== 'UPC' && mapped !== 'ITF14') return null;
+    /* si le code lu est déjà valide : rien à réparer, la concordance suffit */
+    var chkSelf = checkValue(value, mapped);
+    if (chkSelf && chkSelf.ok) return null;
+    var cands = ocrCandidates(ocrText);
+    var norm = function (s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+    for (var i = 0; i < cands.length; i++) {
+      var c = norm(cands[i]);
+      var chk = checkValue(c, mapped);
+      if (!chk || !chk.ok) continue;
+      var cd = c.replace(/\D/g, '');
+      /* mêmes longueurs, 1 ou 2 chiffres d'écart : le texte imprimé corrige le code mal lu */
+      if (cd.length === digits0.length && levD(cd, digits0) >= 1 && levD(cd, digits0) <= 2)
+        return { value: chk.value, note: ' Code incomplet ou mal lu : réparé grâce au texte imprimé à côté (clé de contrôle vérifiée ✓).' };
+      /* le code lu est un morceau du numéro imprimé (partie manquante comblée) */
+      if (cd.length > digits0.length && cd.indexOf(digits0) !== -1 && digits0.length >= 8)
+        return { value: chk.value, note: ' Parties manquantes comblées avec le texte imprimé à côté (clé de contrôle vérifiée ✓).' };
+    }
+    return null;
+  }
+
+  /* ===== COMPLÉTION MANUELLE : si un chiffre est illisible, l'utilisateur peut
+     mettre « ? » à sa place dans la case de saisie ; l'app trouve le chiffre qui
+     rend la clé de contrôle valide (EAN-13, EAN-8, UPC, ITF-14). ===== */
+  function completeWildcard(value) {
+    if (!value || value.indexOf('?') === -1) return null;
+    var v = value.toUpperCase();
+    var idx = v.indexOf('?');
+    if (v.indexOf('?', idx + 1) !== -1) return null; /* un seul « ? » à la fois */
+    var found = null;
+    for (var d = 0; d <= 9; d++) {
+      var t = v.replace('?', String(d));
+      var dd = t.replace(/\D/g, '');
+      var ok = false;
+      if (dd.length === 13 && dd === t) ok = fmtOk(dd, 'EAN13');
+      else if (dd.length === 8 && dd === t) ok = fmtOk(dd, 'EAN8');
+      else if (dd.length === 12 && dd === t) ok = fmtOk(dd, 'UPC');
+      else if (dd.length === 14 && dd === t) ok = fmtOk(dd, 'ITF14');
+      if (ok) { if (found) return null; found = t; } /* plusieurs solutions → ambigu, on ne devine pas */
+    }
+    if (found) return { value: found, note: ' Chiffre manquant retrouvé automatiquement grâce à la clé de contrôle ✓.' };
+    return null;
+  }
+
+  /* Choisit le meilleur candidat OCR : celui dont la clé de contrôle est valide passe en premier */
+  function ocrBestCandidate(cands) {
+    if (!cands || !cands.length) return null;
+    var fmts = [['EAN13', 13], ['EAN8', 8], ['UPC', 12], ['ITF14', 14]];
+    for (var f = 0; f < fmts.length; f++) {
+      for (var i = 0; i < cands.length; i++) {
+        var d = String(cands[i]).replace(/\D/g, '');
+        if (d.length === fmts[f][1] && d === cands[i] && fmtOk(d, fmts[f][0]))
+          return { v: d, note: '✅ Numéro lu à côté du code — clé de contrôle vérifiée ✓.' };
+      }
+    }
+    return { v: cands[0], note: null };
+  }
+
+  /* ===== TYPE DE CODE RECHERCHÉ : ciblage pour améliorer la reconnaissance ===== */
+  scanFormatSel.addEventListener('change', function () {
+    scanFmt = scanFormatSel.value;
+    detector = null; mfr = null; /* les moteurs seront reconstruits avec le format choisi */
+    statusEl.className = 'hint';
+    statusEl.textContent = scanFmt === 'auto'
+      ? 'Détection automatique : tous les types de codes sont recherchés.'
+      : 'Recherche ciblée : ' + scanFormatSel.options[scanFormatSel.selectedIndex].text + '. Visez le code.';
+    saveState();
+  });
+
+  /* ================= SMART DATA LA POSTE (DataMatrix postal) ================= */
+  /* Clé de contrôle du n° SD : ISO/IEC 7064 MOD 37-36, alphabet 0-9A-Z — la
+     méthode officielle La Poste, validée sur les exemples du guide et de vraies
+     étiquettes : 87012345678910→K, 86900000000001→Q, 86350091705431→S… */
+  var SD_ALPHA = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  function sdChecksum(number) {
+    var modulus = 36, check = modulus / 2;
+    for (var i = 0; i < number.length; i++) {
+      var c = check || modulus;
+      check = ((c * 2) % (modulus + 1) + SD_ALPHA.indexOf(number[i])) % modulus;
+    }
+    return check;
+  }
+  function sdKey(id14) {
+    var modulus = 36, cs = sdChecksum(id14) || modulus;
+    return SD_ALPHA[(((1 - (cs * 2) % (modulus + 1)) % modulus) + modulus) % modulus];
+  }
+  function sdKeyValid(sd) {
+    var s = String(sd || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+    return s.length === 15 && sdKey(s.slice(0, 14)) === s.slice(14);
+  }
+  /* produit probable d'après le préfixe du n° SD (constaté sur les vrais envois) */
+  function sdProduct(id) {
+    var c = String(id || '');
+    if (/^0/.test(c)) return 'étiquette modèle (numéro à zéros)';
+    var p2 = c.slice(0, 2);
+    if (p2 === '86') return 'Lettre Suivie / Lettre Services Plus (suivi)';
+    if (p2 === '87') return 'Lettre Recommandée Smart Data (LRSD)';
+    if (p2 === '88') return 'Lettre Suivie (sticker de suivi)';
+    if (p2 === '8A') return 'valeur déclarée / suivi signature (probable)';
+    if (p2 === '8E') return 'Recommandée avec AR — signé (probable)';
+    return 'produit courrier La Poste (préfixe ' + p2 + ')';
+  }
+  /* analyse une chaîne lue dans un code : repère le n° SD (14 caractères aux
+     positions 9-22 de la Smart Data, ex. %000000087000635587726381250A18^BAA39F) */
+  function sdParse(value) {
+    var s = String(value || '');
+    if (!s) return null;
+    var re = /8[0-9A-Z]\d{12}/g, m, pick = null;
+    while ((m = re.exec(s)) !== null) {
+      var good = (m.index === 7 || m.index === 8);
+      if (!pick || good) pick = { id: m[0], at: m.index };
+      if (good) break;
+    }
+    if (!pick) return null;
+    var after = s.slice(pick.at + 14, pick.at + 15);
+    var keyCalc = sdKey(pick.id);
+    var keyGiven = /^[0-9A-Z]$/.test(after) ? after : '';
+    /* la clé n'est pas toujours dans le code : on ne la retient que si elle colle */
+    if (keyGiven && keyGiven !== keyCalc) keyGiven = '';
+    return {
+      id: pick.id,
+      keyCalc: keyCalc,
+      keyGiven: keyGiven,
+      at: pick.at,
+      raw: s,
+      header: s.slice(0, pick.at),
+      after: s.slice(pick.at + 14 + (keyGiven ? 1 : 0)),
+      client: (s.indexOf('^') >= 0) ? s.slice(s.indexOf('^') + 1) : '',
+      sdStructure: s.charAt(0) === '%' || s.indexOf('^') >= 0
+    };
+  }
+  /* cherche un n° SD (14 car. + clé) dans le TEXTE IMPRIMÉ à côté du code */
+  function sdFromPrinted(text) {
+    var t = String(text || '').toUpperCase().replace(/[^0-9A-Z]/g, ' ');
+    var re = /8[0-9A-Z]\d{12}[0-9A-Z]/g, m;
+    while ((m = re.exec(t)) !== null) {
+      if (sdKey(m[0].slice(0, 14)) === m[0].slice(14)) return { id: m[0].slice(0, 14), key: m[0].slice(14) };
+    }
+    var m2 = t.match(/SD\s+([0-9A-Z]{14})(\s|$)/);
+    if (m2 && /^8/.test(m2[1])) return { id: m2[1], key: sdKey(m2[1]), keyAbsent: true };
+    return null;
+  }
+  /* si la chaîne Smart Data lue contient un n° SD qui diffère d'au plus
+     2 caractères du n° imprimé (clé vérifiée) → le texte imprimé gagne */
+  function sdRepair(value, ocrText) {
+    var p = sdParse(value);
+    if (!p || !p.sdStructure) return null;
+    var printed = sdFromPrinted(ocrText);
+    if (!printed || printed.keyAbsent) return null;
+    if (printed.id === p.id) return null;
+    var same = 0;
+    for (var i = 0; i < 14; i++) if (printed.id[i] === p.id[i]) same++;
+    if (same < 12) return null;
+    var fixed = value.slice(0, p.at) + printed.id + value.slice(p.at + 14);
+    return { value: fixed, note: '🔧 Numéro SD réparé grâce au texte imprimé à côté du code (clé de contrôle vérifiée ✓). Vérifiez avant usage.' };
+  }
+  function showSdInfo(value, mapped) {
+    var p = sdParse(value);
+    if (!p) { sdInfo.style.display = 'none'; return; }
+    function esc(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+    var html = '📮 <b>Smart Data La Poste reconnue</b><br/>' +
+      'N° SD : <b>' + p.id + p.keyGiven + '</b> — clé de contrôle : <b>' + p.keyCalc + '</b> ' +
+      (p.keyGiven ? '(✓ valide)' : '(absente du code — saisie facultative)') + '<br/>' +
+      'Produit probable : ' + esc(sdProduct(p.id)) + '<br/>';
+    if (p.client) html += 'Zone client (après ^) : ' + esc(p.client) + '<br/>';
+    html += p.sdStructure
+      ? 'Le texte complet ci-dessus est la chaîne Smart Data : régénérez-le tel quel (onglet DataMatrix) pour un code postal conforme.'
+      : 'Pour le suivi (laposte.fr), seul le N° SD compte ; la chaîne complète du code donne un code postal conforme.';
+    sdInfo.innerHTML = html;
+    sdInfo.style.display = '';
+  }
+
+  /* ================= COULEURS DU CODE (nuances de noir, tampons, feutres) ================= */
+  /* Analyse la photo (ou la zone du code détecté) : identifie la couleur exacte
+     des modules du code — noir pur, nuances de gris, tampons aux teintes
+     différentes, code imprimé en couleur — pour régénérer un code propre. */
+  var lastCodeBox = null; /* {x,y,w,h} en fractions 0-1 (BarcodeDetector) */
+  function colorNameOf(r, g, b) {
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    var l = Math.round((mx + mn) / 2);
+    if (d <= 40) {
+      if (l < 60) return 'noir profond';
+      if (l < 100) return 'noir / gris très foncé';
+      if (l < 150) return 'gris foncé';
+      if (l < 205) return 'gris';
+      return 'gris clair';
+    }
+    var h = 0;
+    if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+    h = ((h * 60) % 360 + 360) % 360;
+    var base = (h < 15 || h >= 345) ? 'rouge' : h < 40 ? 'rouge-orangé' : h < 70 ? 'orange' :
+      h < 100 ? 'jaune-vert' : h < 160 ? 'vert' : h < 200 ? 'cyan / turquoise' :
+      h < 260 ? 'bleu' : h < 300 ? 'violet' : 'magenta / rose';
+    return base + (l < 110 ? ' foncé' : (l > 180 ? ' clair' : ''));
+  }
+  function analyzeCodeColors(src, box) {
+    try {
+      var w0 = src.videoWidth || src.naturalWidth || src.width, h0 = src.videoHeight || src.naturalHeight || src.height;
+      if (!w0 || !h0) return null;
+      var bx = (box && box.w > 0.05 && box.h > 0.05) ? box : { x: 0.2, y: 0.2, w: 0.6, h: 0.6 };
+      var W = 320, H = Math.max(1, Math.round(W * (h0 * bx.h) / (w0 * bx.w)));
+      var cv = getZxCanvas(); cv.width = W; cv.height = H;
+      var ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(src, bx.x * w0, bx.y * h0, bx.w * w0, bx.h * h0, 0, 0, W, H);
+      var d = ctx.getImageData(0, 0, W, H).data;
+      var counts = {}, darkTotal = 0, i;
+      for (i = 0; i < d.length; i += 4) {
+        var r = d[i], g = d[i + 1], b = d[i + 2];
+        var lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (lum > 170) continue; /* fond et zone claire ignorés */
+        darkTotal++;
+        var key = (r >> 4) + ',' + (g >> 4) + ',' + (b >> 4);
+        counts[key] = (counts[key] || 0) + 1;
+      }
+      /* regroupe les nuances par nom de couleur (un tampon noir peut avoir
+         plusieurs teintes ; un code peut être imprimé en couleur) */
+      var byName = {};
+      for (var k2 in counts) {
+        var pr = k2.split(','), rr = (Number(pr[0]) << 4) + 8, gg = (Number(pr[1]) << 4) + 8, bb = (Number(pr[2]) << 4) + 8;
+        var nm = colorNameOf(rr, gg, bb);
+        var e = byName[nm] || (byName[nm] = { n: 0, r: 0, g: 0, b: 0 });
+        e.n += counts[k2]; e.r += rr * counts[k2]; e.g += gg * counts[k2]; e.b += bb * counts[k2];
+      }
+      var parts = [];
+      for (var nm2 in byName) {
+        var e2 = byName[nm2];
+        function hx(v) { var s = Math.round(v / e2.n).toString(16); return s.length < 2 ? '0' + s : s; }
+        parts.push({ name: nm2, hex: '#' + hx(e2.r) + hx(e2.g) + hx(e2.b), pct: Math.round(100 * e2.n / Math.max(1, darkTotal)) });
+      }
+      if (!parts.length) return null;
+      parts.sort(function (a, b3) { return b3.pct - a.pct; });
+      parts = parts.slice(0, 4);
+      var SATRE = /rouge|orange|jaune|vert|cyan|bleu|violet|magenta|rose/;
+      var txt = parts.map(function (q) { return q.name + ' ' + q.pct + ' % (' + q.hex + ')'; }).join(', ');
+      var hasColor = parts.some(function (q) { return SATRE.test(q.name) && q.pct >= 8; });
+      if (hasColor) txt += ' — un tampon ou un feutre coloré touche le code : la régénération propre ci-dessous restaure un code net.';
+      return { parts: parts, text: txt, topColored: SATRE.test(parts[0].name) && parts[0].pct >= 40 };
+    } catch (e) { return null; }
+  }
+  function applyCodeColors(src) {
+    try {
+      var res = analyzeCodeColors(src, lastCodeBox);
+      if (res && res.text) {
+        colorNote.textContent = 'Détecté sur le code : ' + res.text;
+        if (res.topColored) { genColor.value = res.parts[0].hex; try { localStorage.setItem('genColor3', genColor.value); } catch (eL) {} }
+      }
+    } catch (e) {}
+  }
+
+  function updateLibStatus() {
+    var el = document.getElementById('libStatus');
+    if (!el) return;
+    var zx = ('ZXing' in window || 'BarcodeDetector' in window);
+    var ocr = ocrAvailable();
+    el.textContent = 'Génération : ✓ 100% intégrée (hors-ligne) | Lecture photo : ' +
+      (zx ? '✓' : '✗ (rechargez une fois avec Internet)') +
+      ' | Lecture du texte imprimé (OCR) : ' + (ocr ? '✓ (1re utilisation avec Internet)' : '✗ (rechargez une fois avec Internet)');
+  }
+  updateLibStatus();
+
+  /* ================= HISTORIQUE ================= */
+  function renderHistory() {
+    historyEl.innerHTML = '';
+    emptyHist.style.display = hist.length ? 'none' : 'block';
+    hist.slice(0, 12).forEach(function (h) {
+      var li = document.createElement('li');
+      var span = document.createElement('span');
+      span.textContent = h.value;
+      var fmt = document.createElement('span');
+      fmt.className = 'fmt';
+      fmt.textContent = h.format;
+      var btn = document.createElement('button');
+      btn.textContent = '↻';
+      btn.onclick = function () { openResult(h.value, h.format); };
+      li.appendChild(span); li.appendChild(fmt); li.appendChild(btn);
+      historyEl.appendChild(li);
+    });
+  }
+  function saveHistory(value, format) {
+    hist = hist.filter(function (h) { return h.value !== value; });
+    hist.unshift({ value: value, format: format || '' });
+    renderHistory(); saveState();
+  }
+  function wipeAll() {
+    hist = [];
+    lastResult = null; lastVal = null;
+    try { localStorage.removeItem(LS_KEY); } catch (e) {}
+    try { valEl.textContent = ''; editVal.value = ''; resultEl.style.display = 'none'; } catch (e) {}
+    try { output.innerHTML = ''; } catch (e) {}
+    try { historyEl.innerHTML = ''; emptyHist.style.display = 'block'; } catch (e) {}
+    try { photoInput.value = ''; } catch (e) {}
+    renderHistory();
+  }
+  document.getElementById('wipeBtn').onclick = function () {
+    if (confirm('Effacer tous les codes affichés et l\'historique ? (Action immédiate et définitive)')) wipeAll();
+  };
+  renderHistory();
+  /* Restauration après fermeture/rechargement : rien n'est perdu par accident */
+  loadState(); updateModeUI(); renderHistory();
+  if (lastResult) {
+    valEl.textContent = lastResult;
+    editVal.value = lastResult;
+    tabQr.classList.toggle('active', mode === 'qr');
+    tabBc.classList.toggle('active', mode === 'bc');
+    tabDm.classList.toggle('active', mode === 'dm');
+    resultEl.style.display = 'block';
+    renderOutput();
+  }
+
+  function beepOk() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; g.gain.value = 0.25;
+      o.connect(g); g.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + 0.18);
+    } catch (e) {}
+  }
+
+  /* ================= LECTURE (caméra / photo) ================= */
+  var BD_FORMATS = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code','code_93','codabar','data_matrix','pdf417'];
+  function bdNames() {
+    if (scanFmt === 'auto') return BD_FORMATS;
+    var m = { QR_CODE: ['qr_code'], EAN_13: ['ean_13'], EAN_8: ['ean_8'], UPC_A: ['upc_a'],
+      CODE_128: ['code_128'], CODE_39: ['code_39'], ITF: ['itf'], DATA_MATRIX: ['data_matrix'] };
+    return m[scanFmt] || BD_FORMATS;
+  }
+  function getDetector() {
+    if (detector !== null || !('BarcodeDetector' in window)) return detector;
+    try { detector = new BarcodeDetector({ formats: bdNames() }); } catch (e) {
+      try { detector = new BarcodeDetector({ formats: BD_FORMATS }); } catch (e2) { detector = null; }
+    }
+    return detector;
+  }
+  var zxCanvas = null, zxCanvas2 = null, mfr = null, zxLoopId = null;
+  function getZxCanvas() {
+    if (!zxCanvas) zxCanvas = document.createElement('canvas');
+    return zxCanvas;
+  }
+  function getZxCanvas2() {
+    if (!zxCanvas2) zxCanvas2 = document.createElement('canvas');
+    return zxCanvas2;
+  }
+  function fmtName(f) {
+    if (!window.ZXing) return '' + f;
+    for (var k in ZXing.BarcodeFormat) if (ZXing.BarcodeFormat[k] === f) return k;
+    return '' + f;
+  }
+  function getReader() {
+    if (mfr || !window.ZXing) return mfr;
+    try {
+      var BF = ZXing.BarcodeFormat;
+      var fmts;
+      if (scanFmt === 'auto') {
+        fmts = [BF.EAN_13, BF.EAN_8, BF.UPC_A, BF.UPC_E, BF.CODE_128, BF.CODE_39,
+          BF.CODE_93, BF.ITF, BF.QR_CODE, BF.CODABAR, BF.DATA_MATRIX, BF.PDF_417];
+      } else {
+        var M = { QR_CODE: BF.QR_CODE, EAN_13: BF.EAN_13, EAN_8: BF.EAN_8, UPC_A: BF.UPC_A,
+          CODE_128: BF.CODE_128, CODE_39: BF.CODE_39, ITF: BF.ITF, DATA_MATRIX: BF.DATA_MATRIX };
+        fmts = [M[scanFmt] || BF.CODE_128];
+      }
+      var hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, fmts);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      mfr = new ZXing.MultiFormatReader();
+      mfr.setHints(hints);
+    } catch (e) { mfr = null; }
+    return mfr;
+  }
+  function zxDecodeLs(ls) {
+    var r = getReader().decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(ls)));
+    return { text: r.getText(), format: fmtName(r.getBarcodeFormat()) };
+  }
+  /* ===== FILTRE COULEURS : gomme les gribouillis de stylo, tampons et feutres colorés.
+     Un vrai code (photocopié ou imprimé) est noir / gris / blanc : ses pixels sont neutres
+     (rouge ≈ vert ≈ bleu). Les traits de feutre BLEU, ROUGE, VERT sont saturés :
+     on les érase (→ blanc) ou on les garde seuls (→ noir si le code lui-même est coloré).
+     Ensuite on étire le contraste des niveaux de gris restants. ===== */
+  function colorFilterCanvas(src, coloredTo) {
+    var w = src.videoWidth || src.naturalWidth || src.width;
+    var h = src.videoHeight || src.naturalHeight || src.height;
+    if (!w || !h) return null;
+    var scale = Math.min(1, 1200 / Math.max(w, h));
+    var c = getZxCanvas(); c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+    var ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    var img = ctx.getImageData(0, 0, c.width, c.height);
+    var d = img.data;
+    var mins = [], i, mn, mx, sat, g, mnAll = 255, mxAll = 0;
+    for (i = 0; i < d.length; i += 4) {
+      mn = Math.min(d[i], d[i + 1], d[i + 2]);
+      mx = Math.max(d[i], d[i + 1], d[i + 2]);
+      sat = mx - mn;
+      if (sat > 60) {
+        /* pixel coloré : feutre, stylo, tampon → effacé (ou gardé seul) */
+        if (coloredTo === 'white') { d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255; mins.push(255); }
+        else { d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255; mins.push(0); }
+      } else {
+        g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+        d[i] = g; d[i + 1] = g; d[i + 2] = g; d[i + 3] = 255;
+        mins.push(g);
+        if (g < mnAll) mnAll = g;
+        if (g > mxAll) mxAll = g;
+      }
+    }
+    /* étirement de contraste sur les pixels neutres seulement (les colorés restent fixés) */
+    var range = mxAll - mnAll;
+    for (i = 0, p = 0; i < d.length; i += 4, p++) {
+      var g2 = mins[p];
+      if (g2 !== 0 && g2 !== 255) {
+        g2 = range > 30 ? Math.round(255 * (g2 - mnAll) / range) : (g2 < 128 ? 0 : 255);
+        d[i] = g2; d[i + 1] = g2; d[i + 2] = g2;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+
+  /* Décode une image/video dessinée dans un canvas — API 0.21 : MultiFormatReader + LuminanceSource.
+     Si le code est coupé ou trop petit, on retente en zoomant sur le centre (×1,5 puis ×2,2).
+     Si aggressive=true, on retente après filtrage des couleurs (gomme les feutres/stylos colorés,
+     puis essaie aussi le code imprimé en couleur). */
+  function zxDecodeElement(el, aggressive) {
+    if (!window.ZXing || !getReader()) return null;
+    var w = el.videoWidth || el.naturalWidth || el.width;
+    var h = el.videoHeight || el.naturalHeight || el.height;
+    if (!w || !h) return null;
+    var scale = Math.min(1, 1200 / Math.max(w, h));
+    var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+    var c = getZxCanvas(); c.width = cw; c.height = ch;
+    var ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(el, 0, 0, cw, ch);
+    var ls = new ZXing.HTMLCanvasElementLuminanceSource(c);
+    try { return zxDecodeLs(ls); } catch (e1) {}
+    try { return zxDecodeLs(ls.rotateCounterClockwise()); } catch (e2) {}
+    /* recadrages rapprochés : aident pour un code partiel, une photo petite ou un code mal cadré */
+    var tries = [[0.66, 1.5], [0.45, 2.2]];
+    for (var t = 0; t < tries.length; t++) {
+      var frac = tries[t][0], sc = tries[t][1];
+      var rw = Math.max(1, Math.round(cw * frac)), rh = Math.max(1, Math.round(ch * frac));
+      var ox = Math.round((cw - rw) / 2), oy = Math.round((ch - rh) / 2);
+      var nw = Math.max(1, Math.min(1200, Math.round(rw * sc)));
+      var nh = Math.max(1, Math.min(1200, Math.round(rh * sc)));
+      var c2 = getZxCanvas2(); c2.width = nw; c2.height = nh;
+      var ctx2 = c2.getContext('2d', { willReadFrequently: true });
+      ctx2.imageSmoothingEnabled = true;
+      ctx2.drawImage(c, ox, oy, rw, rh, 0, 0, nw, nh);
+      try { return zxDecodeLs(new ZXing.HTMLCanvasElementLuminanceSource(c2)); } catch (e3) {}
+    }
+    /* mode agressif : filtre couleurs — gomme feutres/stylos colorés puis tente code coloré */
+    if (aggressive) {
+      var fc = colorFilterCanvas(el, 'white');
+      if (fc) {
+        var fls = new ZXing.HTMLCanvasElementLuminanceSource(fc);
+        try { return zxDecodeLs(fls); } catch (e4) {}
+        try { return zxDecodeLs(fls.rotateCounterClockwise()); } catch (e5) {}
+        var ft = [[0.66, 1.5]];
+        for (var ft2 = 0; ft2 < ft.length; ft2++) {
+          var ffrac = ft[ft2][0], fsc = ft[ft2][1];
+          var frw = Math.max(1, Math.round(fc.width * ffrac)), frh = Math.max(1, Math.round(fc.height * ffrac));
+          var fox = Math.round((fc.width - frw) / 2), foy = Math.round((fc.height - frh) / 2);
+          var fnw = Math.max(1, Math.min(1200, Math.round(frw * fsc)));
+          var fnh = Math.max(1, Math.min(1200, Math.round(frh * fsc)));
+          var fc2 = getZxCanvas2(); fc2.width = fnw; fc2.height = fnh;
+          var fctx2 = fc2.getContext('2d', { willReadFrequently: true });
+          fctx2.imageSmoothingEnabled = true;
+          fctx2.drawImage(fc, fox, foy, frw, frh, 0, 0, fnw, fnh);
+          try { return zxDecodeLs(new ZXing.HTMLCanvasElementLuminanceSource(fc2)); } catch (e6) {}
+        }
+      }
+      var fcb = colorFilterCanvas(el, 'black');
+      if (fcb) {
+        try { return zxDecodeLs(new ZXing.HTMLCanvasElementLuminanceSource(fcb)); } catch (e7) {}
+      }
+    }
+    return null;
+  }
+
+  function stopScan() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    if (zxLoopId) { clearTimeout(zxLoopId); zxLoopId = null; }
+    updateFlashUI();
+    ocrBtn.style.display = 'none';
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    video.srcObject = null;
+    startBtn.textContent = '▶︎ Démarrer la caméra';
+  }
+
+  /* ===== MISE AU POINT + ZOOM AUTOMATIQUES (V15) ===== */
+  function autoFocusZoom() {
+    try {
+      var track = stream.getVideoTracks()[0];
+      var caps = track.getCapabilities ? track.getCapabilities() : {};
+      var adv = [];
+      /* Mise au point : mode continu si le téléphone le propose */
+      if (caps.focusMode && caps.focusMode.indexOf && caps.focusMode.indexOf('continuous') !== -1) {
+        adv.push({ focusMode: 'continuous' });
+      }
+      /* Zoom automatique : x2 si la caméra le permet (sans dépasser ses limites) */
+      if (caps.zoom && caps.zoom.max > 1) {
+        var z = Math.min(caps.zoom.max, 2);
+        if (caps.zoom.min && z < caps.zoom.min) z = caps.zoom.min;
+        adv.push({ zoom: z });
+      }
+      if (adv.length) {
+        track.applyConstraints({ advanced: adv }).then(function () {
+          if (running) {
+            statusEl.className = 'hint';
+            statusEl.textContent = ' Caméra prête — mise au point et zoom automatiques activés. Visez le code-barres.';
+          }
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+
+
+  /* ===== LAMPE FLASH — BOUTON 3 ÉTATS (vert = allumé / rouge = éteint / orange = auto) ===== */
+  var flashBtn = document.getElementById('flashBtn');
+  var flashHint = document.getElementById('flashHint');
+  var lumCanvas = document.createElement('canvas'); /* mini-image 32×24 pour mesurer la lumière (mode auto) */
+  lumCanvas.width = 32; lumCanvas.height = 24;
+  var lumCtx = lumCanvas.getContext('2d');
+  var torchAutoTick = null; /* minuteur du mode auto (1 mesure par seconde) */
+
+  function setTorch(on) {
+    var track = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+    if (!track || !torchSupported) return Promise.resolve();
+    return track.applyConstraints({ advanced: [{ torch: !!on }] })
+      .then(function () { torchOn = !!on; updateFlashUI(); })
+      .catch(function () {});
+  }
+  function isDark() { /* renvoie vrai s'il fait sombre devant la caméra */
+    try {
+      lumCtx.drawImage(video, 0, 0, 32, 24);
+      var d = lumCtx.getImageData(0, 0, 32, 24).data;
+      var sum = 0, n = d.length / 4;
+      for (var i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) / 3;
+      return (sum / n) < 60;
+    } catch (e) { return false; }
+  }
+  function stopAutoTick() { if (torchAutoTick) { clearInterval(torchAutoTick); torchAutoTick = null; } }
+  function startAutoTick() {
+    stopAutoTick();
+    if (torchMode === 'auto' && running && torchSupported) {
+      setTorch(isDark()); /* mesure immédiate puis 1 fois par seconde */
+      torchAutoTick = setInterval(function () { setTorch(isDark()); }, 1000);
+    }
+  }
+  function updateFlashUI() {
+    if (!running) { flashBtn.style.display = 'none'; flashHint.style.display = 'none'; stopAutoTick(); return; }
+    flashBtn.style.display = '';
+    if (!torchSupported) {
+      flashBtn.disabled = true;
+      flashBtn.className = 'sec flashBtn';
+      flashBtn.textContent = ' Flash indisponible';
+      flashHint.style.display = '';
+      flashHint.textContent = ' La lampe n’est pas disponible sur ce navigateur (essayez avec Chrome).';
+    } else {
+      flashBtn.disabled = false;
+      flashHint.style.display = 'none';
+      if (torchMode === 'on') { flashBtn.className = 'sec flashBtn on'; flashBtn.textContent = ' Flash : allumé'; }
+      else if (torchMode === 'off') { flashBtn.className = 'sec flashBtn off'; flashBtn.textContent = ' Flash : éteint'; }
+      else { flashBtn.className = 'sec flashBtn auto'; flashBtn.textContent = ' Flash : auto (lampe ' + (torchOn ? 'ON' : 'OFF') + ')'; }
+    }
+  }
+  flashBtn.addEventListener('click', function () {
+    if (!running || !torchSupported) return;
+    /* un appui = état suivant : allumé → éteint → auto → allumé … */
+    if (torchMode === 'on') torchMode = 'off';
+    else if (torchMode === 'off') torchMode = 'auto';
+    else torchMode = 'on';
+    if (torchMode === 'on') { stopAutoTick(); setTorch(true); }
+    else if (torchMode === 'off') { stopAutoTick(); setTorch(false); }
+    else startAutoTick();
+    updateFlashUI();
+    saveState();
+  });
+
+  async function startScan() {
+    if (running) { stopScan(); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      statusEl.textContent = 'Caméra indisponible ici : utilisez « Scanner depuis une photo » ou hébergez la page en HTTPS.';
+      statusEl.className = 'hint err';
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      running = true;
+      startBtn.textContent = '⏸ Arrêter la caméra';
+      statusEl.className = 'hint';
+      statusEl.textContent = 'Visez le code-barres, la détection est automatique.';
+      autoFocusZoom(); /* mise au point + zoom automatiques dès l'ouverture */
+      /* ===== FLASH : détection du support lampe + remise dans l'état mémorisé ===== */
+      try {
+        var tTrack = stream.getVideoTracks()[0];
+        var tCaps = tTrack.getCapabilities ? tTrack.getCapabilities() : {};
+        torchSupported = !!(tCaps.torch);
+      } catch (e) { torchSupported = false; }
+      if (torchSupported && torchMode === 'on') setTorch(true);
+      else if (torchSupported && torchMode === 'auto') startAutoTick();
+      updateFlashUI();
+      ocrBtn.style.display = '';
+      var bd = getDetector();
+      if (bd) tick();
+      else if (window.ZXing) zxTick();
+      else {
+        statusEl.textContent = 'Moteur de lecture non chargé. Rechargez la page avec Internet, ou utilisez « Scanner depuis une photo ».';
+        statusEl.className = 'hint err';
+        stopScan();
+      }
+    } catch (e) {
+      statusEl.textContent = 'Accès caméra refusé ou indisponible : ' + (e && e.message ? e.message : e) + ' — utilisez « Scanner depuis une photo ».';
+      statusEl.className = 'hint err';
+    }
+  }
+
+  /* Bouton OCR : lit le numéro imprimé à côté du code, sur l'image actuelle de la caméra */
+  ocrBtn.addEventListener('click', async function () {
+    if (ocrBusy || !running) return;
+    if (!ocrAvailable()) {
+      statusEl.className = 'hint err';
+      statusEl.textContent = 'Lecture du texte non chargée : rechargez la page une fois avec Internet, puis réessayez.';
+      return;
+    }
+    ocrBusy = true;
+    statusEl.className = 'hint';
+    statusEl.textContent = ' Lecture des chiffres et lettres écrits à côté…';
+    var txt = await ocrReadTextDeep(video);
+    ocrBusy = false;
+    var cands = ocrCandidates(txt);
+    if (!cands.length) {
+      statusEl.className = 'hint err';
+      statusEl.textContent = 'Aucun numéro lisible sur le texte autour du code. Rapprochez-vous du texte imprimé et réessayez.';
+      return;
+    }
+    if (scanMode === 'photo' && running) {
+      stopScan();
+      statusEl.className = 'hint';
+      statusEl.textContent = '✅ Numéro lu sur le texte imprimé — caméra arrêtée (mode photo unique).';
+    }
+    var best = ocrBestCandidate(cands);
+    saveHistory(best.v, 'TEXTE');
+    pendingNote = best.note || ' Numéro lu sur le texte imprimé à côté du code (code illisible pour la caméra). Vérifiez-le avant usage.';
+    openResult(best.v, ocrGuessFormat(best.v));
+  });
+
+  function tick() {
+    if (!running) return;
+    getDetector().detect(video).then(function (codes) {
+      if (codes && codes.length > 0) {
+        /* parmi les codes vus, on privilégie celui dont la clé de contrôle est correcte */
+        var pick = codes[0];
+        for (var ci = 0; ci < codes.length; ci++) {
+          var mappedCi = FORMAT_MAP['' + codes[ci].format];
+          var chkCi = mappedCi ? checkValue(codes[ci].rawValue, mappedCi) : null;
+          if (chkCi && chkCi.ok) { pick = codes[ci]; break; }
+        }
+        onDetected(pick.rawValue, '' + pick.format);
+      }
+      rafId = requestAnimationFrame(tick);
+    }).catch(function () { rafId = requestAnimationFrame(tick); });
+  }
+
+  /* Boucle de secours (ZXing) : capture une frame vidéo toutes les 250 ms et la décode via canvas.
+     Toutes les ~8 frames (2 s), on tente aussi le mode agressif avec filtre couleurs
+     (utile quand un stylo ou un tampon coloré recouvre le code). */
+  var zxTickCount = 0;
+  function zxTick() {
+    if (!running) return;
+    try {
+      var aggressive = (zxTickCount % 8 === 7);
+      var r = zxDecodeElement(video, aggressive);
+      if (r) onDetected(r.text, r.format);
+    } catch (e) {}
+    zxTickCount++;
+    zxLoopId = setTimeout(zxTick, 250);
+  }
+
+  /* ===== CLÉ DE CONTRÔLE : VÉRIFIER, COMPLÉTER ET COMBLER LE MANQUE =====
+     Beaucoup de codes-barres (EAN-13, EAN-8, UPC, ITF-14) finissent par une « clé »
+     calculée à partir des autres chiffres. Si la lecture capte mal le code :
+     - un chiffre manquant (clé absente) → il est recalculé automatiquement ;
+     - un chiffre mal lu → la clé le détecte, et les lectures voisines de la caméra
+       servent à recomposer le bon chiffre (vote position par position) ;
+     - impossible de trancher → le code est affiché avec un avertissement clair. */
+  function fmtOk(v, fmt) {
+    if (fmt === 'EAN13') return /^\d{13}$/.test(v) && eanCheckDigit(v.slice(0, 12)) === v[12];
+    if (fmt === 'EAN8') return /^\d{8}$/.test(v) && eanCheckDigit(v.slice(0, 7)) === v[7];
+    if (fmt === 'UPC') return /^\d{12}$/.test(v) && eanUpcCheck(v.slice(0, 11)) === v[11];
+    if (fmt === 'ITF14') return /^\d{14}$/.test(v) && eanUpcCheck13(v.slice(0, 13)) === v[13];
+    return true;
+  }
+  /* Note : une clé de contrôle permet de DÉTECTER un chiffre erroné, mais pas de
+     savoir où il se trouve : toute position pourrait être « corrigée ». La vraie
+     réparation fiable utilise les lectures voisines (vote ci-dessous). */
+  function checkValue(value, fmt) {
+    if (fmt !== 'EAN13' && fmt !== 'EAN8' && fmt !== 'UPC' && fmt !== 'ITF14') return null;
+    var v = value.replace(/\D/g, '');
+    if (fmt === 'EAN13') {
+      if (v.length === 12) return { ok: true, value: v + eanCheckDigit(v), note: ' Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
+      if (v.length === 13) return fmtOk(v, 'EAN13') ? { ok: true, value: v } : { ok: false, value: v };
+      return null;
+    }
+    if (fmt === 'EAN8') {
+      if (v.length === 7) return { ok: true, value: v + eanCheckDigit(v), note: ' Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
+      if (v.length === 8) return fmtOk(v, 'EAN8') ? { ok: true, value: v } : { ok: false, value: v };
+      return null;
+    }
+    if (fmt === 'UPC') {
+      if (v.length === 11) return { ok: true, value: v + eanUpcCheck(v), note: ' Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
+      if (v.length === 12) return fmtOk(v, 'UPC') ? { ok: true, value: v } : { ok: false, value: v };
+      return null;
+    }
+    if (fmt === 'ITF14') {
+      if (v.length === 13) return { ok: true, value: v + eanUpcCheck13(v), note: ' Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
+      if (v.length === 14) return fmtOk(v, 'ITF14') ? { ok: true, value: v } : { ok: false, value: v };
+      return null;
+    }
+    return null;
+  }
+
+  /* ===== LECTURES VOISINES : si la clé ne colle pas, on mémorise chaque lecture
+     de la caméra et on recompose le code le plus probable (chiffre le plus vu
+     à chaque position), puis on revérifie la clé. ===== */
+  var candPool = [], candTimer = null, candFmt = null;
+  function resetCandidates() { candPool = []; if (candTimer) { clearTimeout(candTimer); candTimer = null; } }
+  function majorityVote() {
+    if (!candPool.length) return null;
+    var L = candPool[0].v.length, out = '';
+    for (var p = 0; p < L; p++) {
+      var cnt = {}, bch = '', bn = 0;
+      for (var i = 0; i < candPool.length; i++) {
+        var ch = candPool[i].v[p];
+        cnt[ch] = (cnt[ch] || 0) + 1;
+      }
+      for (var k in cnt) if (cnt[k] > bn) { bn = cnt[k]; bch = k; }
+      out += bch;
+    }
+    return out;
+  }
+  function resolveCandidates() {
+    var pool = candPool, fmt = candFmt;
+    resetCandidates();
+    if (!pool.length || !fmt) return;
+    var voted = majorityVote();
+    var chk = voted ? checkValue(voted, fmt.f) : null;
+    if (chk && chk.ok) acceptResult(chk.value, fmt.raw, chk.note || ' Code recomposé à partir des lectures voisines, puis vérifié par la clé de contrôle.');
+    else if (voted) acceptResult(voted, fmt.raw, null);
+  }
+
+  function acceptResult(value, format, note) {
+    var now = Date.now();
+    if (lastVal === value && now - cooldown < 4000) return;
+    lastVal = value; cooldown = now;
+    beepOk();
+    if (scanMode === 'photo' && running) {
+      stopScan();
+      statusEl.className = 'hint';
+      statusEl.textContent = '✅ Code capturé — caméra arrêtée (mode photo unique). Relancez « Démarrer la caméra » pour un nouveau scan.';
+    }
+    saveHistory(value, format);
+    pendingNote = note || '';
+    openResult(value, format);
+  }
+
+  function onDetected(value, format) {
+    if (!value) return;
+    var mapped = FORMAT_MAP[format] || (format === 'QR_CODE' || format === 'qr_code' ? 'QR_CODE' : null);
+    var chk = (mapped && mapped !== 'QR_CODE') ? checkValue(value, mapped) : null;
+    if (chk && chk.ok) { resetCandidates(); acceptResult(chk.value, format, chk.note); return; }
+    if (chk && !chk.ok && running) {
+      /* lecture douteuse : on garde les numéros de cette lecture et on compare
+         avec les captures voisines pour combler le manque */
+      candPool.push({ v: chk.value });
+      candFmt = { f: mapped, raw: format };
+      if (!candTimer) candTimer = setTimeout(resolveCandidates, 1200);
+      if (candPool.length >= 4) resolveCandidates();
+      return;
+    }
+    resetCandidates();
+    acceptResult(value, format, null);
+  }
+
+  /* ================= RÉSULTAT / AFFICHAGE ================= */
+  var FORMAT_MAP = { EAN_13:'EAN13', EAN_8:'EAN8', UPC_A:'UPC', UPC_E:'UPC',
+    CODE_128:'CODE128', CODE_39:'CODE39', ITF:'ITF14', ITF_14:'ITF14',
+    ean_13:'EAN13', ean_8:'EAN8', upc_a:'UPC', upc_e:'UPC',
+    code_128:'CODE128', code_39:'CODE39', itf:'ITF14', itf_14:'ITF14' };
+
+  function openResult(value, format) {
+    /* un « ? » dans la saisie = chiffre illisible → retrouvé par la clé de contrôle */
+    var cw = completeWildcard(value);
+    if (cw) { value = cw.value; pendingNote = cw.note; }
+    var mapped = (format === 'DATA_MATRIX' || format === 'data_matrix') ? 'DATA_MATRIX'
+      : (FORMAT_MAP[format] || (format === 'QR_CODE' || format === 'qr_code' ? 'QR_CODE' : null)
+        || (['EAN13', 'EAN8', 'UPC', 'ITF14', 'ITF', 'CODE39', 'CODE128'].indexOf(format) !== -1 ? format : null));
+    var digits0 = value.replace(/\D/g, '');
+    if (!mapped && digits0.length >= 7 && digits0.length <= 14 && digits0 === value) {
+      mapped = digits0.length <= 8 ? 'EAN8' : (digits0.length === 14 ? 'ITF14' : 'EAN13');
+    }
+    /* vérification / réparation par la clé de contrôle avant d'afficher */
+    var note = pendingNote || ''; pendingNote = '';
+    if (mapped && mapped !== 'QR_CODE' && mapped !== 'DATA_MATRIX') {
+      var chk = checkValue(value, mapped);
+      if (chk) {
+        if (chk.ok) { value = chk.value; if (chk.note) note = chk.note; }
+        else if (!note) note = '⚠️ Clé de contrôle incorrecte : un chiffre semble mal lu. Corrigez-le dans la case de saisie, puis touchez « Régénérer avec cette valeur ».';
+      }
+    }
+    lastResult = value;
+    valEl.textContent = value;
+    editVal.value = value;
+    repairNote.style.display = note ? '' : 'none';
+    repairNote.textContent = note;
+    showSdInfo(value, mapped);
+    if (mapped === 'QR_CODE') { mode = 'qr'; }
+    else if (mapped === 'DATA_MATRIX') { mode = 'dm'; }
+    else if (mapped) { mode = 'bc'; }
+    if (mapped && mapped !== 'QR_CODE' && mapped !== 'DATA_MATRIX') {
+      for (var i = 0; i < bcFormat.options.length; i++) {
+        if (bcFormat.options[i].value === mapped) { bcFormat.selectedIndex = i; break; }
+      }
+    }
+    tabQr.classList.toggle('active', mode === 'qr');
+    tabBc.classList.toggle('active', mode === 'bc');
+    tabDm.classList.toggle('active', mode === 'dm');
+    resultEl.style.display = 'block';
+    resultEl.scrollIntoView({ behavior: 'smooth' });
+    renderOutput();
+    saveState();
+  }
+
+  /* ================= GÉNÉRATEUR QR INTÉGRÉ ================= */
+  var BuiltinQR = (function () {
+    var EXP = new Array(512), LOG = new Array(256);
+    (function () { var x = 1;
+      for (var i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11d; }
+      for (var j = 255; j < 512; j++) EXP[j] = EXP[j - 255]; })();
+    function gmul(a, b) { return (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]]; }
+    function buildGen(deg) {
+      var g = [1];
+      for (var i = 0; i < deg; i++) {
+        var ng = new Array(g.length + 1).fill(0);
+        for (var j = 0; j < g.length; j++) { ng[j] ^= g[j]; ng[j + 1] ^= gmul(g[j], EXP[i]); }
+        g = ng;
+      }
+      return g;
+    }
+    function rsEncode(data, ecLen) {
+      var gen = buildGen(ecLen), rem = data.concat(new Array(ecLen).fill(0));
+      for (var i = 0; i < data.length; i++) {
+        var f = rem[i];
+        if (f !== 0) for (var j = 0; j < gen.length; j++) rem[i + j] ^= gmul(gen[j], f);
+      }
+      return rem.slice(data.length);
+    }
+    var CAP = [[21,16,10],[25,28,16],[29,44,26]];
+    var CAPL = [[21,19,7],[25,34,10],[29,55,15]];
+    var ALIGN = { 1: [], 2: [18], 3: [22] };
+    var bitB = function (i) { return (0x5412 >> i) & 1; };
+    var bitL = function (i) { return (0x77C4 >> i) & 1; };
+    function build(text) {
+      var utf = [];
+      for (var i = 0; i < text.length; i++) {
+        var c = text.charCodeAt(i);
+        if (c > 255) throw new Error('Caractère non supporté');
+        utf.push(c);
+      }
+      var vi = 0, lvlM = true;
+      while (vi < CAP.length && utf.length + 2 > CAP[vi][1]) vi++;
+      if (vi >= CAP.length) {
+        lvlM = false; vi = 0;
+        while (vi < CAPL.length && utf.length + 2 > CAPL[vi][1]) vi++;
+        if (vi >= CAPL.length) throw new Error('TROP LONG');
+      }
+      var CAPX = lvlM ? CAP[vi] : CAPL[vi];
+      var fmtB = lvlM ? bitB : bitL;
+      var n = CAPX[0], dataLen = CAPX[1], ecLen = CAPX[2], version = vi + 1;
+      var bits = [0,1,0,0];
+      for (var b = 7; b >= 0; b--) bits.push((utf.length >> b) & 1);
+      utf.forEach(function (byte) { for (var k = 7; k >= 0; k--) bits.push((byte >> k) & 1); });
+      bits.push(0,0,0,0);
+      while (bits.length % 8) bits.push(0);
+      var totalBits = dataLen * 8;
+      if (bits.length > totalBits) throw new Error('DEBORDE');
+      while (bits.length < totalBits) [1,1,1,0,1,1,0,0,0,0,0,1,0,0,0,1].forEach(function (x) { if (bits.length < totalBits) bits.push(x); });
+      var dataBytes = [];
+      for (var i2 = 0; i2 < bits.length; i2 += 8) { var v = 0; for (var j2 = 0; j2 < 8; j2++) v = (v << 1) | bits[i2 + j2]; dataBytes.push(v); }
+      var stream = [];
+      dataBytes.concat(rsEncode(dataBytes, ecLen)).forEach(function (byte) { for (var k = 7; k >= 0; k--) stream.push((byte >> k) & 1); });
+      var M = [], R = [];
+      for (var r = 0; r < n; r++) { M.push(new Array(n).fill(null)); R.push(new Array(n).fill(false)); }
+      function mark(x, y) { if (x >= 0 && y >= 0 && x < n && y < n) R[y][x] = true; }
+      function setFinder(x, y) {
+        for (var dy = -1; dy <= 7; dy++) for (var dx = -1; dx <= 7; dx++) {
+          var px = x + dx, py = y + dy;
+          if (px < 0 || py < 0 || px >= n || py >= n) continue;
+          var dark = (dx >= 0 && dx <= 6 && dy >= 0 && dy <= 6) &&
+                     (dx === 0 || dx === 6 || dy === 0 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4));
+          M[py][px] = dark ? 1 : 0; mark(px, py);
+        }
+      }
+      setFinder(0,0); setFinder(n-7,0); setFinder(0,n-7);
+      for (var t = 8; t < n-8; t++) { M[6][t] = (t%2===0)?1:0; M[t][6] = (t%2===0)?1:0; mark(t,6); mark(6,t); }
+      var al = ALIGN[version];
+      al.forEach(function (cy) { al.forEach(function (cx) {
+        if ((cx===6&&cy===6)||(cx===6&&cy===n-7)||(cx===n-7&&cy===6)) return;
+        for (var dy=-2;dy<=2;dy++) for (var dx=-2;dx<=2;dx++) { M[cy+dy][cx+dx]=(Math.max(Math.abs(dx),Math.abs(dy))!==1)?1:0; mark(cx+dx,cy+dy); }
+      }); });
+      for (var f = 0; f <= 8; f++) { mark(f,8); mark(8,f); }
+      for (var f2 = 0; f2 < 8; f2++) { mark(n-1-f2,8); mark(8,n-1-f2); }
+      M[4*version+9][8] = 1; mark(8, 4*version+9);
+      var idx = 0, dirUp = true;
+      for (var col = n-1; col > 0; col -= 2) {
+        if (col === 6) col--;
+        for (var rr = 0; rr < n; rr++) {
+          var row = dirUp ? (n-1-rr) : rr;
+          for (var c2 = 0; c2 < 2; c2++) {
+            var x = col - c2;
+            if (!R[row][x] && M[row][x] === null) M[row][x] = idx < stream.length ? stream[idx++] : 0;
+          }
+        }
+        dirUp = !dirUp;
+      }
+      for (var yy = 0; yy < n; yy++) for (var xx = 0; xx < n; xx++)
+        if (!R[yy][xx]) M[yy][xx] = M[yy][xx] ^ (((yy+xx)%2===0) ? 1 : 0);
+      M[8][0]=fmtB(14); M[8][1]=fmtB(13); M[8][2]=fmtB(12); M[8][3]=fmtB(11); M[8][4]=fmtB(10); M[8][5]=fmtB(9);
+      M[8][7]=fmtB(8); M[8][8]=fmtB(7); M[7][8]=fmtB(6); M[5][8]=fmtB(5); M[4][8]=fmtB(4); M[3][8]=fmtB(3); M[2][8]=fmtB(2); M[1][8]=fmtB(1); M[0][8]=fmtB(0);
+      for (var q2 = 0; q2 < 7; q2++) M[8][n-1-q2] = fmtB(14-q2);
+      for (var q3 = 0; q3 < 8; q3++) M[n-8+q3][8] = fmtB(7-q3);
+      return { n: n, M: M };
+    }
+    function svg(text, cs0, mg0) {
+      var Q = build(text), n = Q.n, cs = cs0 || 8, mg = mg0 || 4;
+      var size = (n + mg * 2) * cs;
+      var s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="crispEdges">';
+      s += '<rect width="100%" height="100%" fill="#fff"/>';
+      var path = '';
+      for (var y = 0; y < n; y++) for (var x = 0; x < n; x++)
+        if (Q.M[y][x]) path += 'M' + ((x+mg)*cs) + ' ' + ((y+mg)*cs) + 'h' + cs + 'v' + cs + 'h-' + cs + 'z';
+      s += '<path d="' + path + '" fill="#000"/>';
+      s += '</svg>';
+      return s;
+    }
+    return { svg: svg };
+  })();
+
+  /* ================= GÉNÉRATEUR DATAMATRIX INTÉGRÉ (ECC 200) =================
+     Même principe que le QR : 100% intégré, fonctionne hors-ligne.
+     Algorithmes officiels du standard ISO/IEC 16022 : Reed-Solomon sur GF(256)
+     (polynôme 0x12D), placement des symboles en zigzag (annexe M.1), tailles
+     carrées 10×10 à 40×40 (jusqu'à 114 caractères) — Smart Data La Poste incluse. */
+  var BuiltinDM = (function () {
+    var EXP = new Array(512), LOG = new Array(256);
+    (function () { var x = 1;
+      for (var i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x12d; }
+      for (var j = 255; j < 512; j++) EXP[j] = EXP[j - 255]; })();
+    function gmul(a, b) { return (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]]; }
+    function buildGen(deg) {
+      var g = [1];
+      for (var i = 0; i < deg; i++) {
+        var ng = new Array(g.length + 1).fill(0);
+        for (var j = 0; j < g.length; j++) { ng[j] ^= g[j]; ng[j + 1] ^= gmul(g[j], EXP[i]); }
+        g = ng;
+      }
+      return g;
+    }
+    function rsEncode(data, ecLen) {
+      var gen = buildGen(ecLen), rem = data.concat(new Array(ecLen).fill(0));
+      for (var i = 0; i < data.length; i++) {
+        var f = rem[i];
+        if (f !== 0) for (var j = 0; j < gen.length; j++) rem[i + j] ^= gmul(gen[j], f);
+      }
+      return rem.slice(data.length);
+    }
+    /* tailles carrées ECC 200 : [caractères de données, codes de correction, taille utile, taille totale]
+       + 5e élément = nombre de régions de données par axe (2) pour les grands symboles 32×32, 36×36, 40×40
+       (structures officielles ISO/zxing : 62+36, 86+42, 114+48 — jusqu'à 114 caractères) */
+    var SIZES = [
+      [3, 5, 8, 10], [5, 7, 10, 12], [8, 10, 12, 14], [12, 12, 14, 16],
+      [18, 14, 16, 18], [22, 18, 18, 20], [30, 20, 20, 22], [36, 24, 22, 24], [44, 28, 24, 26],
+      [62, 36, 14, 32, 2], [86, 42, 16, 36, 2], [114, 48, 18, 40, 2]
+    ];
+    /* codage ASCII : paires de chiffres condensées sur 1 caractère, sinon valeur + 1, puis remplissage */
+    function encodeData(text, dataCap) {
+      var cw = [], i = 0;
+      while (i < text.length) {
+        var c1 = text[i], c2 = text[i + 1];
+        if (c2 !== undefined && c1 >= '0' && c1 <= '9' && c2 >= '0' && c2 <= '9') {
+          cw.push(Number(c1) * 10 + Number(c2) + 130); i += 2;
+        } else {
+          var code = text.charCodeAt(i);
+          if (code < 1 || code > 127) throw new Error('CARACTERE');
+          cw.push(code + 1); i += 1;
+        }
+      }
+      if (cw.length > dataCap) throw new Error('LONG');
+      if (cw.length < dataCap) cw.push(129);
+      var pad = 1;
+      while (cw.length < dataCap) {
+        var pr = ((149 * pad) % 253) + 1;
+        var t = 129 + pr; if (t > 254) t -= 254;
+        cw.push(t); pad++;
+      }
+      return cw;
+    }
+    /* placement des bits en zigzag (ISO 16022 annexe M.1) */
+    function place(codewords, numcols, numrows) {
+      var bits = new Array(numcols * numrows).fill(-1);
+      function setBit(col, row, v) { bits[row * numcols + col] = v ? 1 : 0; }
+      function noBit(col, row) { return bits[row * numcols + col] < 0; }
+      function module_(row, col, pos, bit) {
+        if (row < 0) { row += numrows; col += 4 - ((numrows + 4) % 8); }
+        if (col < 0) { col += numcols; row += 4 - ((numcols + 4) % 8); }
+        setBit(col, row, (codewords[pos] & (1 << (8 - bit))) !== 0);
+      }
+      function utah(row, col, pos) {
+        module_(row - 2, col - 2, pos, 1); module_(row - 2, col - 1, pos, 2);
+        module_(row - 1, col - 2, pos, 3); module_(row - 1, col - 1, pos, 4);
+        module_(row - 1, col, pos, 5); module_(row, col - 2, pos, 6);
+        module_(row, col - 1, pos, 7); module_(row, col, pos, 8);
+      }
+      function corner1(pos) {
+        module_(numrows - 1, 0, pos, 1); module_(numrows - 1, 1, pos, 2); module_(numrows - 1, 2, pos, 3);
+        module_(0, numcols - 2, pos, 4); module_(0, numcols - 1, pos, 5); module_(1, numcols - 1, pos, 6);
+        module_(2, numcols - 1, pos, 7); module_(3, numcols - 1, pos, 8);
+      }
+      function corner2(pos) {
+        module_(numrows - 3, 0, pos, 1); module_(numrows - 2, 0, pos, 2); module_(numrows - 1, 0, pos, 3);
+        module_(0, numcols - 4, pos, 4); module_(0, numcols - 3, pos, 5); module_(0, numcols - 2, pos, 6);
+        module_(0, numcols - 1, pos, 7); module_(1, numcols - 1, pos, 8);
+      }
+      function corner3(pos) {
+        module_(numrows - 3, 0, pos, 1); module_(numrows - 2, 0, pos, 2); module_(numrows - 1, 0, pos, 3);
+        module_(0, numcols - 2, pos, 4); module_(0, numcols - 1, pos, 5); module_(1, numcols - 1, pos, 6);
+        module_(2, numcols - 1, pos, 7); module_(3, numcols - 1, pos, 8);
+      }
+      function corner4(pos) {
+        module_(numrows - 1, 0, pos, 1); module_(numrows - 1, numcols - 1, pos, 2);
+        module_(0, numcols - 3, pos, 3); module_(0, numcols - 2, pos, 4); module_(0, numcols - 1, pos, 5);
+        module_(1, numcols - 3, pos, 6); module_(1, numcols - 2, pos, 7); module_(1, numcols - 1, pos, 8);
+      }
+      var pos = 0, row = 4, col = 0;
+      do {
+        if (row === numrows && col === 0) corner1(pos++);
+        if (row === numrows - 2 && col === 0 && numcols % 4 !== 0) corner2(pos++);
+        if (row === numrows - 2 && col === 0 && numcols % 8 === 4) corner3(pos++);
+        if (row === numrows + 4 && col === 2 && numcols % 8 === 0) corner4(pos++);
+        do {
+          if (row < numrows && col >= 0 && noBit(col, row)) utah(row, col, pos++);
+          row -= 2; col += 2;
+        } while (row >= 0 && col < numcols);
+        row++; col += 3;
+        do {
+          if (row >= 0 && col < numcols && noBit(col, row)) utah(row, col, pos++);
+          row += 2; col -= 2;
+        } while (row < numrows && col >= 0);
+        row += 3; col++;
+      } while (row < numrows || col < numcols);
+      if (noBit(numcols - 1, numrows - 1)) {
+        setBit(numcols - 1, numrows - 1, true);
+        setBit(numcols - 2, numrows - 2, true);
+      }
+      return bits;
+    }
+    function build(text) {
+      var si = null, dataCw = null;
+      for (var s = 0; s < SIZES.length; s++) {
+        try { dataCw = encodeData(text, SIZES[s][0]); si = SIZES[s]; break; }
+        catch (e) { if (e.message === 'CARACTERE') throw e; }
+      }
+      if (!dataCw) throw new Error('LONG');
+      var cw = dataCw.concat(rsEncode(dataCw, si[1]));
+      /* grands symboles multi-régions (32×32, 36×36, 40×40) : le placement se
+         fait sur la zone de données concaténée, puis on la découpe en régions
+         séparées par les motifs d'alignement (algorithme officiel ECC 200) */
+      if (si.length > 4) {
+        var k = si[4], reg = si[2], dd = reg * k;
+        var bitsM = place(cw, dd, dd);
+        var N = si[3], M = [], y, x, my = 0, mx;
+        for (y = 0; y < N; y++) M.push(new Array(N).fill(0));
+        for (y = 0; y < dd; y++) {
+          if (y % reg === 0) { for (x = 0; x < N; x++) M[my][x] = (x % 2 === 0) ? 1 : 0; my++; }
+          mx = 0;
+          for (x = 0; x < dd; x++) {
+            if (x % reg === 0) { M[my][mx] = 1; mx++; }
+            M[my][mx] = bitsM[y * dd + x]; mx++;
+            if (x % reg === reg - 1) { M[my][mx] = (y % 2 === 0) ? 1 : 0; mx++; }
+          }
+          my++;
+          if (y % reg === reg - 1) { for (x = 0; x < N; x++) M[my][x] = 1; my++; }
+        }
+        return { N: N, M: M };
+      }
+      var bits = place(cw, si[2], si[2]);
+      var N = si[3], M = [], y, x;
+      for (y = 0; y < N; y++) M.push(new Array(N).fill(0));
+      /* motifs de bordure : gauche et bas pleins, horloge en haut (x pair) et à droite (y impair) */
+      for (y = 0; y < N; y++) { M[y][0] = 1; if (y % 2 === 1) M[y][N - 1] = 1; }
+      for (x = 0; x < N; x++) { M[N - 1][x] = 1; if (x % 2 === 0) M[0][x] = 1; }
+      for (y = 0; y < si[2]; y++)
+        for (x = 0; x < si[2]; x++)
+          M[y + 1][x + 1] = bits[y * si[2] + x];
+      return { N: N, M: M };
+    }
+    function svg(text, cs0, mg0) {
+      var D = build(text), N = D.N, cs = cs0 || 8, mg = mg0 || 4;
+      var size = (N + mg * 2) * cs;
+      var s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="crispEdges">';
+      s += '<rect width="100%" height="100%" fill="#fff"/>';
+      var path = '';
+      for (var y = 0; y < N; y++) for (var x = 0; x < N; x++)
+        if (D.M[y][x]) path += 'M' + ((x + mg) * cs) + ' ' + ((y + mg) * cs) + 'h' + cs + 'v' + cs + 'h-' + cs + 'z';
+      s += '<path d="' + path + '" fill="#000"/>';
+      s += '</svg>';
+      return s;
+    }
+    return { svg: svg };
+  })();
+
+  /* ================= GÉNÉRATEURS CODE-BARRES INTÉGRÉS ================= */
+  var EAN_L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+  var EAN_G = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
+  var EAN_R = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
+  var EAN_PARITY = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+
+  function eanCheckDigit(d) {
+    var sum = 0;
+    for (var i = 0; i < d.length; i++) {
+      var w = (i % 2 === 0) ? (d.length % 2 === 0 ? 1 : 3) : (d.length % 2 === 0 ? 3 : 1);
+      sum += Number(d[i]) * w;
+    }
+    return String((10 - sum % 10) % 10);
+  }
+  function eanUpcCheck(d) { // 11 chiffres (UPC)
+    var sum = 0;
+    for (var i = 0; i < d.length; i++) sum += Number(d[i]) * (i % 2 === 0 ? 3 : 1);
+    return String((10 - sum % 10) % 10);
+  }
+  function eanUpcCheck13(d) { // 13 chiffres (ITF-14)
+    var sum = 0;
+    for (var i = 0; i < d.length; i++) sum += Number(d[i]) * (i % 2 === 0 ? 3 : 1);
+    return String((10 - sum % 10) % 10);
+  }
+  function eanBits(code) {
+    var p = EAN_PARITY[Number(code[0])], bits = '101';
+    for (var i = 1; i <= 6; i++) bits += (p[i-1] === 'L' ? EAN_L : EAN_G)[Number(code[i])];
+    bits += '01010';
+    for (var j = 7; j < 13; j++) bits += EAN_R[Number(code[j])];
+    return bits + '101';
+  }
+  function ean8BitsOf(code) {
+    var bits = '101';
+    for (var i = 0; i < 4; i++) bits += EAN_L[Number(code[i])];
+    bits += '01010';
+    for (var j = 4; j < 8; j++) bits += EAN_R[Number(code[j])];
+    return bits + '101';
+  }
+  function normalizeEan(value, format) {
+    var v = value.replace(/\D/g, '');
+    if (format === 'EAN13') {
+      if (v.length === 12) return v + eanCheckDigit(v);
+      if (v.length === 13) return v;
+      return null;
+    }
+    if (format === 'EAN8') {
+      if (v.length === 7) return v + eanCheckDigit(v);
+      if (v.length === 8) return v;
+      return null;
+    }
+    if (format === 'UPC') {
+      if (v.length === 11) v = v + eanUpcCheck(v);
+      if (v.length === 12) return '0' + v;
+      return null;
+    }
+    return null;
+  }
+  function bitsToSvg(bits, label, guardPositions) {
+    var n = bits.length, w = 3, h = 120, gs = 36;
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + (n * w + 24) + '" height="' + (h + gs + 24) + '" viewBox="0 0 ' + (n * w + 24) + ' ' + (h + gs + 24) + '">';
+    svg += '<rect width="100%" height="100%" fill="#fff"/>';
+    for (var i = 0; i < n; i++) {
+      if (bits[i] === '1') {
+        var hh = (guardPositions && guardPositions.indexOf(i) !== -1) ? h + gs : h;
+        svg += '<rect x="' + (12 + i * w) + '" y="12" width="' + w + '" height="' + hh + '" fill="#000"/>';
+      }
+    }
+    var fs = 22;
+    if (label.length === 13) {
+      svg += '<text x="12" y="' + (h + gs + 10) + '" font-family="monospace" font-size="' + fs + '" fill="#000">' + label[0] + '</text>';
+      svg += '<text x="' + (12 + 3 * w) + '" y="' + (h + gs + 10) + '" font-family="monospace" font-size="' + fs + '" fill="#000" textLength="' + (42 * w) + '" lengthAdjust="spacing">' + label.slice(1, 7) + '</text>';
+      svg += '<text x="' + (12 + 50 * w) + '" y="' + (h + gs + 10) + '" font-family="monospace" font-size="' + fs + '" fill="#000" textLength="' + (42 * w) + '" lengthAdjust="spacing">' + label.slice(7) + '</text>';
+    } else {
+      svg += '<text x="' + (12 + 3 * w) + '" y="' + (h + gs + 10) + '" font-family="monospace" font-size="' + fs + '" fill="#000" textLength="' + (28 * w) + '" lengthAdjust="spacing">' + label.slice(0, 4) + '</text>';
+      svg += '<text x="' + (12 + 36 * w) + '" y="' + (h + gs + 10) + '" font-family="monospace" font-size="' + fs + '" fill="#000" textLength="' + (28 * w) + '" lengthAdjust="spacing">' + label.slice(4) + '</text>';
+    }
+    svg += '</svg>';
+    return svg;
+  }
+
+  function elementsSvg(els, label, showText) {
+    var mod = 3, h = 130, quiet = 10 * mod, pad = 16, fs = 24, ts = 40;
+    var total = els.reduce(function (a, b) { return a + b; }, 0) * mod;
+    var W = total + quiet * 2 + pad * 2, H = h + pad * 2 + (showText ? ts : 0);
+    var s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
+    s += '<rect width="100%" height="100%" fill="#fff"/>';
+    var x = quiet + pad, bar = true;
+    for (var i = 0; i < els.length; i++) {
+      var wpx = els[i] * mod;
+      if (bar) s += '<rect x="' + x + '" y="' + pad + '" width="' + wpx + '" height="' + h + '" fill="#000"/>';
+      x += wpx; bar = !bar;
+    }
+    if (showText) s += '<text x="' + (W / 2) + '" y="' + (H - 8) + '" font-family="monospace" font-size="' + fs + '" fill="#000" text-anchor="middle">' + label.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</text>';
+    s += '</svg>';
+    return s;
+  }
+
+  function builtInBarcode(value, format) {
+    if (format === 'CODE128') {
+      var C128T = ["212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221","223211","221132","221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321","112313","132113","132311","211313","231113","231311","112133","112331","132131","113123","113321","133121","313121","211331","231131","213113","213311","213131","311123","311321","331121","312113","312311","332111","314111","221411","431111","111224","111422","121124","121421","141122","141221","112214","112412","122114","122411","142112","142211","241211","221114","413111","241112","134111","111242","121142","121241","114212","124112","124211","411212","421112","421211","212141","214121","412121","111143","111341","131141"];
+      var C9599 = ["114113","114311","411113","411311","113141"];
+      var C1002 = ["114131","311141","411131"];
+      var STARTSW = { 103: "211412", 104: "211214", 105: "211232" };
+      function wOf(v) { return v < 95 ? C128T[v] : v < 100 ? C9599[v - 95] : C1002[v - 100]; }
+      if (!/^[\x20-\x7E]+$/.test(value)) return { err: 'Code 128 : caractères autorisés = chiffres, lettres et symboles simples.' };
+      var syms = [];
+      if (/^\d+$/.test(value) && value.length % 2 === 0 && value.length >= 2) {
+        syms.push(105);
+        for (var i = 0; i < value.length; i += 2) syms.push(Number(value.slice(i, i + 2)));
+      } else {
+        syms.push(104);
+        for (var j = 0; j < value.length; j++) syms.push(value.charCodeAt(j) - 32);
+      }
+      var sum = syms[0];
+      for (var k = 1; k < syms.length; k++) sum += syms[k] * k;
+      syms.push(sum % 103);
+      var wstr = STARTSW[syms[0]];
+      for (var m = 1; m < syms.length; m++) wstr += wOf(syms[m]);
+      wstr += "2331112";
+      return elementsSvg(wstr.split('').map(Number), value, true);
+    }
+    if (format === 'CODE39') {
+      var C39B = { '1':[1,0,0,0,1],'2':[0,1,0,0,1],'3':[1,1,0,0,0],'4':[0,0,1,0,1],'5':[1,0,1,0,0],'6':[0,1,1,0,0],'7':[0,0,0,1,1],'8':[1,0,0,1,0],'9':[0,1,0,1,0],'0':[0,0,1,1,0] };
+      function bars39(n) { return C39B[String(n === 10 ? 0 : n)]; }
+      var C39 = {};
+      '1234567890'.split('').forEach(function (d, i) { C39[d] = { bars: bars39(i === 0 ? 10 : i), sp: 2 }; });
+      'ABCDEFGHIJ'.split('').forEach(function (c, i) { C39[c] = { bars: bars39(i + 1), sp: 3 }; });
+      'KLMNOPQRST'.split('').forEach(function (c, i) { C39[c] = { bars: bars39(i + 1), sp: 4 }; });
+      'UVWXYZ'.split('').forEach(function (c, i) { C39[c] = { bars: bars39(i + 1), sp: 1 }; });
+      C39['-'] = { bars: bars39(7), sp: 1 }; C39['.'] = { bars: bars39(8), sp: 1 };
+      C39[' '] = { bars: bars39(9), sp: 1 }; C39['*'] = { bars: bars39(10), sp: 1 };
+      C39['$'] = { bars: [0,0,0,0,0], ns: 1 }; C39['/'] = { bars: [0,0,0,0,0], ns: 2 };
+      C39['+'] = { bars: [0,0,0,0,0], ns: 3 }; C39['%'] = { bars: [0,0,0,0,0], ns: 4 };
+      var val39 = value.toUpperCase();
+      var ok39 = true;
+      for (var v39 = 0; v39 < val39.length; v39++) if (!C39[val39[v39]]) ok39 = false;
+      if (!ok39) return { err: 'Code 39 : caractères autorisés = chiffres, MAJUSCULES, espace, - . $ / + %.' };
+      function char39(c) {
+        var e = C39[c], els = [];
+        for (var i2 = 0; i2 < 5; i2++) {
+          els.push(e.bars[i2] ? 3 : 1);
+          if (i2 < 4) {
+            if (e.ns) els.push(e.ns === i2 + 1 ? 1 : 3);
+            else els.push(e.sp === i2 + 1 ? 3 : 1);
+          }
+        }
+        return els;
+      }
+      var seq = char39('*');
+      for (var p = 0; p < val39.length; p++) seq = seq.concat([1], char39(val39[p]));
+      seq = seq.concat([1], char39('*'));
+      return elementsSvg(seq, val39, true);
+    }
+    if (format === 'ITF') {
+      var vI = value.replace(/\D/g, '');
+      if (vI.length < 2 || vI.length % 2 !== 0) return { err: 'ITF 2/5 : il faut un nombre pair de chiffres (ex. 12345678).' };
+      var ITFD0 = ['00110','10001','01001','11000','00101','10100','01100','00011','10010','01010'];
+      var seqI = [1, 1, 1, 1];
+      for (var pI = 0; pI < vI.length; pI += 2) {
+        var bI = ITFD0[Number(vI[pI])], sI = ITFD0[Number(vI[pI + 1])];
+        for (var qI = 0; qI < 5; qI++) { seqI.push(bI[qI] === '1' ? 3 : 1); seqI.push(sI[qI] === '1' ? 3 : 1); }
+      }
+      seqI.push(3, 1, 1);
+      return elementsSvg(seqI, vI, true);
+    }
+    if (format === 'ITF14') {
+      var v14 = value.replace(/\D/g, '');
+      if (v14.length === 13) v14 = v14 + eanUpcCheck13(v14);
+      if (v14.length !== 14) return { err: 'ITF-14 : 13 chiffres (clé ajoutée automatiquement) ou 14 chiffres requis.' };
+      var ITFD = ['00110','10001','01001','11000','00101','10100','01100','00011','10010','01010'];
+      var seq2 = [1, 1, 1, 1];
+      for (var p2 = 0; p2 < 14; p2 += 2) {
+        var b = ITFD[Number(v14[p2])], s = ITFD[Number(v14[p2 + 1])];
+        for (var q2 = 0; q2 < 5; q2++) { seq2.push(b[q2] === '1' ? 3 : 1); seq2.push(s[q2] === '1' ? 3 : 1); }
+      }
+      seq2.push(3, 1, 1);
+      return elementsSvg(seq2, v14, true);
+    }
+    var v = normalizeEan(value, format);
+    if (!v) return { err: 'Cette valeur n\'a pas le bon nombre de chiffres pour ce format (EAN-13 : 12 ou 13 chiffres, EAN-8 : 7 ou 8, UPC : 11 ou 12).' };
+    if (format === 'EAN8') return bitsToSvg(ean8BitsOf(v), v, [0,1,2,32,33,34,35,36,64,65,66]);
+    return bitsToSvg(eanBits(v), v, [0,1,2,45,46,47,48,49,92,93,94]);
+  }
+
+  function showError(msg) {
+    output.innerHTML = '';
+    var p = document.createElement('div');
+    p.className = 'hint err';
+    p.textContent = msg;
+    output.appendChild(p);
+  }
+
+  /* applique la couleur choisie aux SVG générés (noir par défaut) */
+  function tintSvg(svg) {
+    var col = (genColor && genColor.value) ? genColor.value.toLowerCase() : '#000000';
+    if (!col || col === '#000000' || col === '#000') return svg;
+    return svg.replace(/(fill|stroke)="#0{3,6}"/gi, '$1="' + col + '"');
+  }
+
+  function renderOutput() {
+    var value = lastResult || '';
+    output.innerHTML = '';
+    if (!value) return;
+    if (mode === 'qr') {
+      var qrSvg = null, qrErr = '';
+      try { qrSvg = BuiltinQR.svg(value, 8, 4); }
+      catch (e) { qrErr = (e && e.message === 'TROP LONG') ? 'TROP LONG' : String(e && e.message ? e.message : e); }
+      if (qrSvg) {
+        var holder = document.createElement('div');
+        holder.innerHTML = tintSvg(qrSvg);
+        output.appendChild(holder);
+      } else {
+        showError(qrErr === 'TROP LONG'
+          ? 'Texte trop long pour le QR intégré (max 53 caractères). Utilisez le code-barres.'
+          : 'Impossible de générer le QR code.');
+      }
+    } else if (mode === 'dm') {
+      var dmSvg = null, dmErr = '';
+      try { dmSvg = BuiltinDM.svg(value, 8, 4); }
+      catch (e) { dmErr = (e && e.message === 'LONG') ? 'LONG' : ((e && e.message === 'CARACTERE') ? 'CARACTERE' : String(e && e.message ? e.message : e)); }
+      if (dmSvg) {
+        var holderDm = document.createElement('div');
+        holderDm.innerHTML = tintSvg(dmSvg);
+        output.appendChild(holderDm);
+      } else {
+        showError(dmErr === 'LONG'
+          ? 'Texte trop long pour le DataMatrix intégré (max 114 caractères).'
+          : (dmErr === 'CARACTERE' ? 'Le DataMatrix intégré ne supporte que les caractères ASCII (sans accents).' : 'Impossible de générer le DataMatrix.'));
+      }
+    } else {
+      var res = builtInBarcode(value, bcFormat.value);
+      if (typeof res === 'string') {
+        var holder2 = document.createElement('div');
+        holder2.innerHTML = tintSvg(res);
+        holder2.firstChild.style.maxWidth = '100%';
+        holder2.firstChild.style.height = 'auto';
+        output.appendChild(holder2);
+      } else {
+        showError(res.err || 'Impossible de générer ce code-barres.');
+      }
+    }
+  }
+
+  /* ================= EXPORT PNG / IMPRESSION / PLEIN ÉCRAN ================= */
+  function currentSvg() { return output.querySelector('svg'); }
+
+  pngBtn.addEventListener('click', function () {
+    var srcSvg = currentSvg();
+    if (!srcSvg) return;
+    try {
+      var xml = new XMLSerializer().serializeToString(srcSvg);
+      var svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(svgBlob);
+      var img = new Image();
+      img.onload = function () {
+        var scale = Math.max(2, 1200 / (srcSvg.viewBox.baseVal.width || img.width || 600));
+        var vb = srcSvg.viewBox.baseVal;
+        var w = (vb && vb.width) ? vb.width : (img.width || 600);
+        var h = (vb && vb.height) ? vb.height : (img.height || 400);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function (blob) {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'code-' + String(lastResult || '').replace(/[^a-zA-Z0-9\-]/g, '_') + '.png';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () { a.remove(); }, 500);
+        }, 'image/png');
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        showError('Export PNG impossible sur ce navigateur. Utilisez « Imprimer / PDF ».');
+      };
+      img.src = url;
+    } catch (e) {
+      showError('Export PNG impossible : ' + (e && e.message ? e.message : e));
+    }
+  });
+
+  printBtn.addEventListener('click', function () {
+    var srcSvg = currentSvg();
+    if (!srcSvg || !lastResult) return;
+    document.getElementById('printVal').textContent = lastResult;
+    document.getElementById('printTitle').textContent =
+      mode === 'qr' ? 'QR Code régénéré' : (mode === 'dm' ? 'DataMatrix régénéré' : 'Code-barres régénéré (' + bcFormat.options[bcFormat.selectedIndex].text + ')');
+    var holder = document.getElementById('printCode');
+    holder.innerHTML = '';
+    var clone = srcSvg.cloneNode(true);
+    clone.removeAttribute('width');
+    clone.removeAttribute('height');
+    holder.appendChild(clone);
+    window.print();
+  });
+
+  fullBtn.addEventListener('click', function () {
+    var srcSvg = currentSvg();
+    if (!srcSvg) return;
+    var old = document.getElementById('fsOverlay');
+    if (old) old.remove();
+    var ov = document.createElement('div');
+    ov.id = 'fsOverlay';
+    var clone = srcSvg.cloneNode(true);
+    clone.style.maxWidth = '96vw';
+    clone.style.maxHeight = '80vh';
+    clone.style.width = 'auto';
+    clone.style.height = 'auto';
+    ov.appendChild(clone);
+    var btn = document.createElement('button');
+    btn.className = 'close';
+    btn.textContent = '✕ Fermer';
+    btn.addEventListener('click', function () { ov.remove(); });
+    ov.appendChild(btn);
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+  });
+
+  /* ================= ÉVÉNEMENTS ================= */
+  startBtn.addEventListener('click', startScan);
+  photoBtn.addEventListener('click', function () { photoInput.value = ''; photoInput.click(); });
+  photoInput.addEventListener('change', function () {
+    var f = photoInput.files && photoInput.files[0];
+    if (!f) return;
+    statusEl.className = 'hint';
+    statusEl.textContent = 'Analyse de la photo…';
+    var url = URL.createObjectURL(f);
+    var img = new Image();
+    img.onload = function () {
+      lastCodeBox = null;
+      colorNote.textContent = '';
+      var done = false;
+      function finish(ok, msg) {
+        if (done) return; done = true;
+        URL.revokeObjectURL(url);
+        statusEl.textContent = msg;
+        statusEl.className = ok ? 'hint' : 'hint err';
+      }
+      /* après un décodage réussi : CONCORDANCE avec le texte imprimé + RÉPARATION
+         si le code est incomplet ou mal lu mais que le texte imprimé est valide */
+      function foundCode(value, format) {
+        finish(true, 'Code trouvé ✓');
+        applyCodeColors(img);
+        if (!ocrAvailable()) { onDetected(value, format); return; }
+        ocrReadTextDeep(img).then(function (txt) {
+          var rep = crossRepair(value, txt, format);
+          if (rep) { acceptResult(rep.value, format, rep.note); return; }
+          var repSd = sdRepair(value, txt);
+          if (repSd) { acceptResult(repSd.value, format, repSd.note); return; }
+          onDetected(value, format);
+          var cc = ocrConcordance(value, txt);
+          if (cc === 'ok') {
+            repairNote.style.display = '';
+            repairNote.textContent = '✅ Concordance vérifiée : le texte imprimé à côté correspond bien au contenu du code.';
+          } else if (cc === 'ecart') {
+            repairNote.style.display = '';
+            repairNote.textContent = '⚠️ Écart entre le code et le texte imprimé à côté : vérifiez le numéro avant de l’utiliser.';
+          }
+        }).catch(function () { onDetected(value, format); });
+      }
+      /* si le code est illisible : récupère le numéro imprimé À CÔTÉ du code (timbre, recommandé…) */
+      function noCode() {
+        var tornRes = null;
+        try { tornRes = tornFromImage(img); } catch (eT) { tornRes = null; }
+        if (tornRes) {
+          finish(true, 'Code déchiré — reconstitution…');
+          statusEl.className = 'hint';
+          statusEl.textContent = '✅ Code déchiré reconstitué : ' + tornRes.value + ' — vérifiez le numéro avant usage.';
+          saveHistory(tornRes.value, tornRes.format);
+          pendingNote = '✅ Code RECONSTITUÉ à partir des deux morceaux déchirés (clé de contrôle vérifiée). Vérifiez le numéro avant usage.';
+          openResult(tornRes.value, tornRes.format);
+          return;
+        }
+        if (!ocrAvailable()) {
+          finish(false, 'Aucun code détecté sur cette photo, et la lecture du texte n’est pas chargée (rechargez une fois avec Internet).');
+          return;
+        }
+        finish(true, 'Code illisible — lecture du numéro écrit à côté…');
+        statusEl.className = 'hint';
+        statusEl.textContent = ' Code illisible — lecture des chiffres, lettres et symboles écrits à côté…';
+        ocrReadTextDeep(img).then(function (txt) {
+          var cands = ocrCandidates(txt);
+          if (cands.length) {
+            var best = ocrBestCandidate(cands);
+            statusEl.textContent = '✅ Code illisible, mais le numéro écrit à côté a été lu.';
+            saveHistory(best.v, 'TEXTE');
+            pendingNote = best.note || ' Numéro lu sur le texte imprimé à côté du code (code illisible). Vérifiez-le avant usage.';
+            openResult(best.v, ocrGuessFormat(best.v));
+          } else {
+            statusEl.className = 'hint err';
+            statusEl.textContent = 'Aucun code détecté et aucun numéro lisible à côté. Rapprochez-vous du code ET du texte imprimé, photo nette et bien éclairée. Si le code est DÉCHIRÉ en deux, cadrez les DEUX morceaux proches l’un de l’autre sur la même photo. Sinon, tapez le numéro vous-même dans la carte « ✍️ Générer un code depuis un texte » en bas de page.';
+          }
+        });
+      }
+      var bd = getDetector();
+      if (bd) {
+        bd.detect(img).then(function (codes) {
+          if (codes && codes.length > 0) {
+            /* s'il y a plusieurs codes, on privilégie celui dont la clé de contrôle est correcte */
+            var pick = codes[0];
+            for (var ci = 0; ci < codes.length; ci++) {
+              var mappedCi = FORMAT_MAP['' + codes[ci].format];
+              var chkCi = mappedCi ? checkValue(codes[ci].rawValue, mappedCi) : null;
+              if (chkCi && chkCi.ok) { pick = codes[ci]; break; }
+            }
+            /* on mémorise la zone du code pour l'analyse des couleurs */
+            try {
+              var bb = pick.boundingBox;
+              var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+              if (bb && iw && ih) lastCodeBox = { x: bb.x / iw, y: bb.y / ih, w: bb.width / iw, h: bb.height / ih };
+            } catch (eB) { lastCodeBox = null; }
+            foundCode(pick.rawValue, '' + pick.format);
+          } else {
+            /* rien en brut : on retente BarcodeDetector sur l'image filtrée (couleurs gommées) */
+            var fcv = null;
+            try { fcv = colorFilterCanvas(img, 'white'); } catch (ef) { fcv = null; }
+            if (fcv) {
+              bd.detect(fcv).then(function (codes2) {
+                if (codes2 && codes2.length > 0) {
+                  foundCode(codes2[0].rawValue, '' + codes2[0].format);
+                } else if (window.ZXing) {
+                  var rz = zxDecodeElement(img, true);
+                  if (rz) foundCode(rz.text, rz.format);
+                  else noCode();
+                } else { noCode(); }
+              }).catch(function () {
+                if (window.ZXing) {
+                  var rz2 = zxDecodeElement(img, true);
+                  if (rz2) foundCode(rz2.text, rz2.format);
+                  else noCode();
+                } else noCode();
+              });
+            } else if (window.ZXing) {
+              var rz3 = zxDecodeElement(img, true);
+              if (rz3) foundCode(rz3.text, rz3.format);
+              else noCode();
+            } else { noCode(); }
+          }
+        }).catch(function () {
+          if (window.ZXing) {
+            var rz2 = zxDecodeElement(img, true);
+            if (rz2) foundCode(rz2.text, rz2.format);
+            else noCode();
+          } else noCode();
+        });
+      } else if (window.ZXing) {
+        var r = zxDecodeElement(img, true);
+        if (r) foundCode(r.text, r.format);
+        else noCode();
+      } else {
+        finish(false, 'Moteur de lecture non chargé. Rechargez la page avec Internet.');
+      }
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      statusEl.className = 'hint err';
+      statusEl.textContent = 'Impossible de lire cette image.';
+    };
+    img.src = url;
+  });
+
+  tabQr.addEventListener('click', function () { mode = 'qr'; tabQr.classList.add('active'); tabBc.classList.remove('active'); tabDm.classList.remove('active'); renderOutput(); saveState(); });
+  tabBc.addEventListener('click', function () { mode = 'bc'; tabBc.classList.add('active'); tabQr.classList.remove('active'); tabDm.classList.remove('active'); renderOutput(); saveState(); });
+  tabDm.addEventListener('click', function () { mode = 'dm'; tabDm.classList.add('active'); tabQr.classList.remove('active'); tabBc.classList.remove('active'); renderOutput(); saveState(); });
+  bcFormat.addEventListener('change', function () { mode = 'bc'; tabBc.classList.add('active'); tabQr.classList.remove('active'); tabDm.classList.remove('active'); renderOutput(); saveState(); });
+  applyBtn.addEventListener('click', function () {
+    var v = editVal.value.trim();
+    if (!v) return;
+    var cw = completeWildcard(v);
+    if (cw) { v = cw.value; editVal.value = v; }
+    lastResult = v; valEl.textContent = v; saveHistory(v, 'MANUEL'); renderOutput();
+  });
+  editVal.addEventListener('keydown', function (e) { if (e.key === 'Enter') applyBtn.click(); });
+  editVal.addEventListener('input', function () { valEl.textContent = editVal.value; lastResult = editVal.value; saveState(); });
+  closeBtn.addEventListener('click', function () { resultEl.style.display = 'none'; });
+
+  /* ===== GÉNÉRATEUR DEPUIS UN TEXTE ===== */
+  var genInput = document.getElementById('genInput');
+  var genQrBtn = document.getElementById('genQrBtn');
+  var genBcBtn = document.getElementById('genBcBtn');
+  var genDmBtn = document.getElementById('genDmBtn');
+  function generateFromText(genMode) {
+    var v = genInput.value.trim();
+    if (!v) { genInput.focus(); return; }
+    if (genMode === 'bc') {
+      mode = 'bc'; bcFormat.value = genFormat.value;
+      tabBc.classList.add('active'); tabQr.classList.remove('active'); tabDm.classList.remove('active');
+    } else if (genMode === 'dm') {
+      mode = 'dm';
+      tabDm.classList.add('active'); tabQr.classList.remove('active'); tabBc.classList.remove('active');
+    } else {
+      mode = 'qr';
+      tabQr.classList.add('active'); tabBc.classList.remove('active'); tabDm.classList.remove('active');
+    }
+    lastResult = v; valEl.textContent = v; editVal.value = v;
+    saveHistory(v, genMode === 'bc' ? genFormat.value : (genMode === 'dm' ? 'DM' : 'QR'));
+    resultEl.style.display = 'block';
+    resultEl.scrollIntoView({ behavior: 'smooth' });
+    renderOutput(); saveState();
+  }
+  genQrBtn.addEventListener('click', function () { generateFromText('qr'); });
+  genBcBtn.addEventListener('click', function () { generateFromText('bc'); });
+  genDmBtn.addEventListener('click', function () { generateFromText('dm'); });
+  genInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') genQrBtn.click(); });
+
+  /* ===== BOUTON EFFACER : supprime le code affiché ET le texte.
+     L'historique reste sauvegardé jusqu'au « Tout effacer ». ===== */
+  var clearBtn = document.getElementById('clearBtn');
+  clearBtn.addEventListener('click', function () {
+    lastResult = null;
+    valEl.textContent = '';
+    editVal.value = '';
+    genInput.value = '';
+    output.innerHTML = '';
+    resultEl.style.display = 'none';
+    saveState();
+  });
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
