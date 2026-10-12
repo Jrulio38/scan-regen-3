@@ -1001,15 +1001,22 @@
       for (var j = i + 2; j < i + 14; j++) if (s.charAt(j) < '0' || s.charAt(j) > '9') { okD = false; break; }
       if (!okD) continue;
       var good = (i === 7 || i === 8);
-      if (!pick || (good && !pickGood)) { pick = { id: s.slice(i, i + 14), at: i }; pickGood = good; }
-      if (!keyed) {
+      if (keyed === null) {
         var ka = s.charAt(i + 14);
         if (/^[0-9A-Z]$/.test(ka) && ka === sdKey(s.slice(i, i + 14))) keyed = { id: s.slice(i, i + 14), at: i };
       }
-      if (good && keyed) break;
+      /* V28 : un numéro NON confirmé par sa clé n'est accepté qu'à la position
+         officielle (index 7-8, le % compte pour 1) ET dans une vraie structure
+         Smart Data (% ... ^). Sinon le code est mal lu (abîmé, froissé, caché) :
+         on ne DEVINE JAMAIS — le bon numéro viendra du texte imprimé « SD : … »
+         à côté du code (OCR + vérification de la clé). */
+      if (good && !pickGood) { pick = { id: s.slice(i, i + 14), at: i }; pickGood = true; }
+      if (pickGood && keyed) break;
     }
+    var structured = s.charAt(0) === '%' || s.indexOf('^') >= 0;
     var keyFix = !!(keyed && pick && keyed.id !== pick.id);
     if (keyed) pick = keyed;
+    else if (!structured) pick = null;
     if (!pick) return null;
     var after = s.slice(pick.at + 14, pick.at + 15);
     var keyCalc = sdKey(pick.id);
@@ -1037,6 +1044,13 @@
     while ((m = re.exec(t)) !== null) {
       if (sdKey(m[0].slice(0, 14)) === m[0].slice(14)) return { id: m[0].slice(0, 14), key: m[0].slice(14) };
     }
+    /* V28 : 2e passe sur le texte « recollé » — l'OCR découpe parfois le numéro
+       en groupes (SD : 8660 1309 85046 2B → 86601309850462B) */
+    var sq = t.replace(/\s+/g, '');
+    re.lastIndex = 0;
+    while ((m = re.exec(sq)) !== null) {
+      if (sdKey(m[0].slice(0, 14)) === m[0].slice(14)) return { id: m[0].slice(0, 14), key: m[0].slice(14) };
+    }
     var m2 = t.match(/SD\s+([0-9A-Z]{14})(\s|$)/);
     if (m2 && /^8/.test(m2[1])) return { id: m2[1], key: sdKey(m2[1]), keyAbsent: true };
     return null;
@@ -1057,14 +1071,18 @@
       value.slice(p.at + 14 + (p.keyGiven ? 1 : 0));
     return { value: fixed, note: '🔧 N° SD repris sur le texte imprimé à côté du code (clé de contrôle vérifiée ✓) : le DataMatrix était mal lu ou abîmé. Chaîne corrigée — vérifiez avant usage.' };
   }
+  /* V28 : produit probable + recommandée R1/R2/R3 si présente dans la zone client */
   function showSdInfo(value, mapped) {
     var p = sdParse(value);
     if (!p) { sdInfo.style.display = 'none'; return; }
     function esc(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+    var prodTxt = sdProduct(p.id);
+    var rMatch = p.client.toUpperCase().match(/R[123]/);
+    if (rMatch) prodTxt += ' — niveau ' + rMatch[0] + ' (indiqué dans la zone client)';
     var html = '📮 <b>Smart Data La Poste reconnue</b><br/>' +
       'N° SD : <b>' + p.id + p.keyGiven + '</b> — clé de contrôle : <b>' + p.keyCalc + '</b> ' +
       (p.keyGiven ? '(✓ valide)' : '(absente du code — saisie facultative)') + '<br/>' +
-      'Produit probable : ' + esc(sdProduct(p.id)) + '<br/>';
+      'Produit probable : ' + esc(prodTxt) + '<br/>';
     if (p.keyFix) html += '🔧 N° confirmé par sa clé de contrôle ✓ — le code étant abîmé ou froissé, une autre lecture donnait un autre numéro.<br/>';
     if (p.client) html += 'Zone client (après ^) : ' + esc(p.client) + '<br/>';
     html += p.sdStructure
@@ -1072,6 +1090,61 @@
       : 'Pour le suivi (laposte.fr), seul le N° SD compte ; la chaîne complète du code donne un code postal conforme.';
     sdInfo.innerHTML = html;
     sdInfo.style.display = '';
+  }
+
+  /* ================= V28 : TYPE D'ENVOI / TRANSPORTEUR =================
+     Croise le numéro lu avec les formats des produits La Poste (recommandée,
+     suivi…) et des autres transporteurs (DHL, Amazon, FedEx, UPS). Affichage
+     prudent : quand le format ne suffit pas à trancher, l'appli le dit
+     (« probable, à confirmer sur l'étiquette »). */
+  var courierInfo = null;
+  function courierGuess(value) {
+    var v = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+    if (!v || v.length < 8 || v.length > 40) return null;
+    if (/^[\(\s]*01\d{13}/.test(v)) return null; /* GS1 code produit, pas un n° de suivi */
+    var p = sdParse(v);
+    if (p) return { carrier: 'La Poste', product: sdProduct(p.id), detail: 'Smart Data : courrier suivi de La Poste (voir la fiche ci-dessus)', unsure: false };
+    var m = v.match(/^([A-Z]{2})(\d{9})([A-Z]{2})$/);
+    if (m) {
+      var SVC = { RR: 'lettre recommandée', RC: 'lettre recommandée', RD: 'lettre recommandée', RF: 'lettre recommandée', RG: 'lettre recommandée', RH: 'lettre recommandée', RI: 'recommandée internationale', RJ: 'recommandée urgente', RK: 'recommandée ou colis suivi', RV: 'recommandée avec valeur', EE: 'courrier express — Chronopost / EMS (filiale La Poste)', EB: 'envoi économique (Ecopli…)', CP: 'colis (EMS)', CX: 'colis express' };
+      return { carrier: 'La Poste', product: (SVC[m[1]] || 'envoi suivi international (service ' + m[1] + ')') + ' — pays ' + m[3], detail: 'numéro de suivi international (format UPU)', unsure: false };
+    }
+    /* V29 : filiales du groupe La Poste et autres transporteurs de colis */
+    if (/^[6-9][A-Z]\d{9,12}$/.test(v)) return { carrier: 'La Poste — Colissimo (filiale)', product: 'colis ou colissimo suivi', detail: 'format Colissimo (chiffre + lettre, ex. 6A, 7P, 8L, 9L…)', unsure: false };
+    if (/^[1-5][A-Z]\d{8,14}(FR)?$/.test(v)) return { carrier: 'La Poste', product: 'envoi suivi / recommandé de France (format interne, ex. 1A, 2M, 4A)', detail: 'numéro de suivi interne', unsure: false };
+    if (/^1Z[0-9A-Z]{16}$/.test(v)) return { carrier: 'UPS', product: 'colis UPS', detail: 'numéro 1Z… : colis du transporteur UPS', unsure: false };
+    if (/^(TBA|TBC|TBM|TBT|TBR)\d{6,}$/.test(v)) return { carrier: 'Amazon', product: 'colis expédié par Amazon', detail: 'numéro de colis Amazon', unsure: false };
+    if (/^JD\d{10}$/.test(v)) return { carrier: 'DHL', product: 'colis DHL (JD…)', detail: 'numéro DHL Express ou partenaire', unsure: false };
+    if (/^GM\d{15,}/.test(v)) return { carrier: 'DHL', product: 'colis DHL e-commerce (GM…)', detail: 'envoi e-commerce international', unsure: false };
+    if (/^\d{14}$/.test(v)) return { carrier: 'DPD (probable)', product: 'colis à 14 chiffres', detail: 'format DPD France', unsure: true };
+    if (/^\d{11}$/.test(v)) return { carrier: 'GLS (probable)', product: 'colis à 11 chiffres', detail: 'format souvent GLS', unsure: true };
+    if (/^\d{13}$/.test(v)) return { carrier: 'Mondial Relay / colis (probable)', product: 'colis à 13 chiffres', detail: 'format souvent Mondial Relay (8 chiffres + 5)', unsure: true };
+    if (/^\d{10}$/.test(v)) return { carrier: 'DHL ou Chronopost (probable)', product: 'colis à 10 chiffres', detail: 'format DHL Express ou Chronopost', unsure: true };
+    if (/^\d{12}$/.test(v)) return { carrier: 'FedEx (probable)', product: 'numéro de colis à 12 chiffres', detail: 'format souvent FedEx Express', unsure: true };
+    if (/^\d{15}$/.test(v)) return { carrier: 'FedEx (probable)', product: 'numéro de colis à 15 chiffres', detail: 'format souvent FedEx', unsure: true };
+    if (/^96\d{18}$/.test(v) || /^\d{20}$/.test(v)) return { carrier: 'FedEx / autre transporteur (probable)', product: 'numéro long de colis', detail: 'format type FedEx (96…)', unsure: true };
+    return null;
+  }
+  function showCourierInfo(value, mapped) {
+    if (mapped === 'EAN13' || mapped === 'EAN8' || mapped === 'UPC' || mapped === 'ITF14') {
+      if (courierInfo) courierInfo.style.display = 'none';
+      return;
+    }
+    var g = courierGuess(value);
+    if (courierInfo === null) {
+      courierInfo = document.createElement('div');
+      courierInfo.setAttribute('style', 'display:none;margin:8px 0;padding:10px 12px;border-radius:12px;background:#f3efff;border:1px solid #cdbdf5;font-size:14px;line-height:1.45');
+      if (sdInfo && sdInfo.parentNode) sdInfo.parentNode.insertBefore(courierInfo, sdInfo.nextSibling);
+    }
+    if (!courierInfo.parentNode) return;
+    if (!g || sdParse(value)) { courierInfo.style.display = 'none'; return; }
+    function escC(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+    var htmlC = '📦 <b>Type d\u2019envoi / transporteur</b><br/>' +
+      '<b>' + escC(g.carrier) + '</b> — ' + escC(g.product) + '<br/>' +
+      escC(g.detail);
+    if (g.unsure) htmlC += '<br/>⚠️ Format probable : à confirmer sur l\u2019étiquette ou le site du transporteur.';
+    courierInfo.innerHTML = htmlC;
+    courierInfo.style.display = '';
   }
 
   /* ================= V27 : INFOS PRODUIT (Open Food Facts) =================
@@ -1804,11 +1877,24 @@
       sdInfo.style.display = '';
     } catch (eN) {}
   }
+  /* V28 : affiche la boîte Smart Data à partir du n° SD IMPRIMÉ à côté du code
+     (quand le DataMatrix lui-même est mal lu / partiellement caché) */
+  function sdShowPrinted(pr, note) {
+    if (!pr) return;
+    var k = pr.key || sdKey(pr.id);
+    function escP(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+    sdInfo.innerHTML = '📮 <b>Smart Data La Poste reconnue</b><br/>' +
+      'N° SD : <b>' + pr.id + k + '</b> — clé de contrôle : <b>' + k + '</b> (✓ valide, lue sur le texte imprimé)<br/>' +
+      'Produit probable : ' + escP(sdProduct(pr.id)) + '<br/>' + note;
+    sdInfo.style.display = '';
+  }
   function sdAutoCheck(value, format) {
     if (format !== 'DATA_MATRIX' && format !== 'data_matrix') return;
     if (sdCheckBusy || sdCheckDone === value) return;
     var p = sdParse(value);
-    if (!p) return;
+    /* V28 : même sans n° SD fiable dans le code (mal lu / partiellement caché),
+       si la chaîne ressemble à une Smart Data on va lire le n° imprimé à côté */
+    if (!p && !/8[0-9A-Z][0-9]{12}/.test(String(value))) return;
     if (!ocrAvailable()) return;
     sdCheckBusy = true; sdCheckDone = value;
     statusEl.className = 'hint';
@@ -1816,13 +1902,19 @@
     ocrReadTextDeep(video).then(function (txt) {
       sdCheckBusy = false;
       if (!running) return;
-      var rep = sdRepair(value, txt);
+      var rep = p ? sdRepair(value, txt) : null;
       if (rep) { acceptResult(rep.value, format, rep.note); return; }
       var printed = sdFromPrinted(txt);
-      if (printed && printed.id === p.id) {
-        showSdNote('✅ N° SD confirmé par le texte imprimé à côté (clé vérifiée ✓).<br/>');
-      } else if (!printed && !p.keyGiven && !p.keyChecked) {
-        showSdNote('⚠️ N° SD non confirmé : clé absente du code et texte imprimé illisible ici. Si l’étiquette est abîmée, comparez avec le numéro « SD : … » imprimé à côté.<br/>');
+      if (printed && !printed.keyAbsent) {
+        if (p && printed.id === p.id) {
+          showSdNote('✅ N° SD confirmé par le texte imprimé à côté (clé vérifiée ✓).<br/>');
+        } else if (!p) {
+          sdShowPrinted(printed, '🔎 Le DataMatrix était abîmé ou partiellement caché : ce numéro est celui imprimé en clair à côté du code (clé de contrôle vérifiée ✓).<br/>');
+        } else {
+          sdShowPrinted(printed, '⚠️ Le n° lu dans le code et le n° imprimé ne concordent pas : ci-dessus le numéro imprimé (clé vérifiée ✓) — vérifiez sur l\u2019étiquette.<br/>');
+        }
+      } else if (p && !printed && !p.keyGiven && !p.keyChecked) {
+        showSdNote('⚠️ N° SD non confirmé : clé absente du code et texte imprimé illisible ici. Si l\u2019étiquette est abîmée, comparez avec le numéro « SD : … » imprimé à côté.<br/>');
       }
       statusEl.className = 'hint';
       statusEl.textContent = 'Visez le code-barres, la détection est automatique.';
@@ -1895,6 +1987,7 @@
     repairNote.style.display = note ? '' : 'none';
     repairNote.textContent = note;
     showSdInfo(value, mapped);
+    showCourierInfo(value, mapped);
     try { updateProdBtn(value, mapped); } catch (ePr) {} /* V27 : fiche produit si code EAN / UPC / DataMatrix GS1 */
     if (mapped === 'QR_CODE') { mode = 'qr'; }
     else if (mapped === 'DATA_MATRIX') { mode = 'dm'; }
@@ -2555,6 +2648,14 @@
           if (rep) { acceptResult(rep.value, format, rep.note); return; }
           var repSd = sdRepair(value, txt);
           if (repSd) { acceptResult(repSd.value, format, repSd.note); return; }
+          /* V28 : DataMatrix mal lu (abîmé / caché) sans n° fiable dans le code :
+             on affiche le n° SD imprimé à côté (clé vérifiée) */
+          var printedSd = sdFromPrinted(txt);
+          if (!sdParse(value) && printedSd && !printedSd.keyAbsent) {
+            onDetected(value, format);
+            sdShowPrinted(printedSd, '🔎 Le DataMatrix était abîmé ou partiellement caché : ce numéro est celui imprimé en clair à côté du code (clé de contrôle vérifiée ✓).<br/>');
+            return;
+          }
           onDetected(value, format);
           var cc = ocrConcordance(value, txt);
           if (cc === 'ok') {
