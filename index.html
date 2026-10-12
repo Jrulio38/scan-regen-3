@@ -988,12 +988,28 @@
   function sdParse(value) {
     var s = String(value || '');
     if (!s) return null;
-    var re = /8[0-9A-Z]\d{12}/g, m, pick = null;
-    while ((m = re.exec(s)) !== null) {
-      var good = (m.index === 7 || m.index === 8);
-      if (!pick || good) pick = { id: m[0], at: m.index };
-      if (good) break;
+    /* V27 : on regarde le n° SD possible à TOUTES les positions de départ (une
+       fausse piste commençant juste avant peut masquer le vrai numéro, comme
+       sur le courrier froissé qui lisait 88708… au lieu de 8660…). Priorité à la
+       position officielle (9-22) ; si un autre n° est CONFIRMÉ par sa clé de
+       contrôle (le caractère juste après), il gagne sur un n° non confirmé. */
+    var pick = null, pickGood = false, keyed = null;
+    for (var i = 0; i + 14 <= s.length; i++) {
+      if (s.charAt(i) !== '8') continue;
+      if (!/^[0-9A-Z]$/.test(s.charAt(i + 1))) continue;
+      var okD = true;
+      for (var j = i + 2; j < i + 14; j++) if (s.charAt(j) < '0' || s.charAt(j) > '9') { okD = false; break; }
+      if (!okD) continue;
+      var good = (i === 7 || i === 8);
+      if (!pick || (good && !pickGood)) { pick = { id: s.slice(i, i + 14), at: i }; pickGood = good; }
+      if (!keyed) {
+        var ka = s.charAt(i + 14);
+        if (/^[0-9A-Z]$/.test(ka) && ka === sdKey(s.slice(i, i + 14))) keyed = { id: s.slice(i, i + 14), at: i };
+      }
+      if (good && keyed) break;
     }
+    var keyFix = !!(keyed && pick && keyed.id !== pick.id);
+    if (keyed) pick = keyed;
     if (!pick) return null;
     var after = s.slice(pick.at + 14, pick.at + 15);
     var keyCalc = sdKey(pick.id);
@@ -1009,7 +1025,9 @@
       header: s.slice(0, pick.at),
       after: s.slice(pick.at + 14 + (keyGiven ? 1 : 0)),
       client: (s.indexOf('^') >= 0) ? s.slice(s.indexOf('^') + 1) : '',
-      sdStructure: s.charAt(0) === '%' || s.indexOf('^') >= 0
+      sdStructure: s.charAt(0) === '%' || s.indexOf('^') >= 0,
+      keyFix: keyFix,
+      keyChecked: !!keyed
     };
   }
   /* cherche un n° SD (14 car. + clé) dans le TEXTE IMPRIMÉ à côté du code */
@@ -1031,11 +1049,13 @@
     var printed = sdFromPrinted(ocrText);
     if (!printed || printed.keyAbsent) return null;
     if (printed.id === p.id) return null;
-    var same = 0;
-    for (var i = 0; i < 14; i++) if (printed.id[i] === p.id[i]) same++;
-    if (same < 12) return null;
-    var fixed = value.slice(0, p.at) + printed.id + value.slice(p.at + 14);
-    return { value: fixed, note: '🔧 Numéro SD réparé grâce au texte imprimé à côté du code (clé de contrôle vérifiée ✓). Vérifiez avant usage.' };
+    /* V27 : le n° imprimé a sa clé de contrôle VÉRIFIÉE → il gagne, même si le
+       DataMatrix est très endommagé (2, 4 ou 10 chiffres différents : quand le
+       code est froissé/déchiré, c’est la lecture du code qui est fausse, pas le
+       texte imprimé). */
+    var fixed = value.slice(0, p.at) + printed.id + printed.key +
+      value.slice(p.at + 14 + (p.keyGiven ? 1 : 0));
+    return { value: fixed, note: '🔧 N° SD repris sur le texte imprimé à côté du code (clé de contrôle vérifiée ✓) : le DataMatrix était mal lu ou abîmé. Chaîne corrigée — vérifiez avant usage.' };
   }
   function showSdInfo(value, mapped) {
     var p = sdParse(value);
@@ -1045,12 +1065,129 @@
       'N° SD : <b>' + p.id + p.keyGiven + '</b> — clé de contrôle : <b>' + p.keyCalc + '</b> ' +
       (p.keyGiven ? '(✓ valide)' : '(absente du code — saisie facultative)') + '<br/>' +
       'Produit probable : ' + esc(sdProduct(p.id)) + '<br/>';
+    if (p.keyFix) html += '🔧 N° confirmé par sa clé de contrôle ✓ — le code étant abîmé ou froissé, une autre lecture donnait un autre numéro.<br/>';
     if (p.client) html += 'Zone client (après ^) : ' + esc(p.client) + '<br/>';
     html += p.sdStructure
       ? 'Le texte complet ci-dessus est la chaîne Smart Data : régénérez-le tel quel (onglet DataMatrix) pour un code postal conforme.'
       : 'Pour le suivi (laposte.fr), seul le N° SD compte ; la chaîne complète du code donne un code postal conforme.';
     sdInfo.innerHTML = html;
     sdInfo.style.display = '';
+  }
+
+  /* ================= V27 : INFOS PRODUIT (Open Food Facts) =================
+     Après un scan de code produit (EAN-13, EAN-8, UPC, DataMatrix GS1), la
+     touche « 🧾 Composition / infos produit » ouvre la fiche du produit :
+     nom, marque, Nutri-Score et POURQUOI cette note (points défavorables),
+     ingrédients, allergènes, additifs. Base libre Open Food Facts — cette
+     touche a besoin d’Internet, tout le reste de l’appli reste hors-ligne. */
+  var prodModal = null;
+  function prodGtin(value) {
+    var v = String(value || '').trim();
+    if (/^\d{13}$/.test(v)) return v;
+    if (/^\d{8}$/.test(v)) return v;
+    if (/^\d{12}$/.test(v)) return '0' + v;
+    var c = v.replace(/\s+/g, '');
+    var m = c.match(/(?:\(01\)|^01)(\d{13,14})/); /* DataMatrix GS1 : (01)… */
+    if (m) return m[1].length === 14 ? m[1].slice(1) : m[1];
+    m = c.match(/(?:^|[^0-9])(\d{13})(?:[^0-9]|$)/);
+    return m ? m[1] : null;
+  }
+  function prodEsc(x) { return String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function prodBadge(label, level) {
+    var col = level === 'low' ? '#2e7d32' : (level === 'moderate' ? '#e65100' : '#b71c1c');
+    var lab = level === 'low' ? 'faible ✓' : (level === 'moderate' ? 'modérée' : 'élevée ⚠');
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;color:#fff;background:' + col + ';font-size:12px;margin:2px 4px 2px 0">' + prodEsc(label) + ' : ' + lab + '</span>';
+  }
+  function prodShowModal(inner) {
+    if (prodModal) prodModal.remove();
+    var ov = document.createElement('div');
+    ov.setAttribute('style', 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px');
+    var card = document.createElement('div');
+    card.setAttribute('style', 'position:relative;background:#fff;color:#222;width:100%;max-width:540px;max-height:88vh;overflow:auto;border-radius:16px;padding:18px 18px 16px;font:14px/1.45 system-ui,sans-serif');
+    card.innerHTML = inner;
+    var btn = document.createElement('button');
+    btn.textContent = '✕ Fermer';
+    btn.setAttribute('style', 'display:block;margin:14px auto 0;padding:10px 22px;border:0;border-radius:12px;background:#333;color:#fff;font-size:15px');
+    btn.addEventListener('click', function () { ov.remove(); });
+    card.appendChild(btn);
+    ov.appendChild(card);
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+    prodModal = ov;
+  }
+  function prodNutriWhy(p) {
+    try {
+      var nl = p.nutrient_levels || {}, nm = p.nutriments || {};
+      var names = { 'sugars': 'sucres', 'saturated-fat': 'graisses saturées', 'salt': 'sel', 'fat': 'matières grasses' };
+      var rows = '', bad = [];
+      var order = ['sugars', 'saturated-fat', 'salt', 'fat'];
+      for (var i = 0; i < order.length; i++) {
+        var k = order[i], lv = nl[k];
+        if (!lv) continue;
+        var per = nm[k + '_100g'];
+        if (per == null && k === 'salt' && nm['sodium_100g'] != null) per = nm['sodium_100g'] * 2.5;
+        if (per == null && k === 'saturated-fat' && nm['saturated-fat_100g'] != null) per = nm['saturated-fat_100g'];
+        rows += prodBadge(names[k], lv) + (per != null ? ' (' + per + ' g / 100 g)' : '') + '<br/>';
+        if (lv === 'high') bad.push(names[k]);
+      }
+      var why = bad.length
+        ? 'Pourquoi cette note ? Le Nutri-Score additionne les points défavorables (calories, sucres, graisses saturées, sel) et retranche les points favorables (fibres, protéines, fruits/légumes). Ici les points défavorables l’emportent, surtout à cause de : ' + bad.join(', ') + '.'
+        : 'Pourquoi cette note ? Les points favorables (fibres, protéines) compensent ici en grande partie les points défavorables (calories, sucres, graisses saturées, sel).';
+      return '<div style="margin:8px 0">' + rows + '</div><p style="margin:6px 0">' + why + '</p>';
+    } catch (e) { return ''; }
+  }
+  function prodHtml(p, gt) {
+    var NS = { 'a': '#038141', 'b': '#85BB2F', 'c': '#FECB02', 'd': '#EE8100', 'e': '#E63E08' };
+    var grade = (p.nutriscore_grade || '').toLowerCase();
+    var h = '<h3 style="margin:4px 0 2px;font-size:17px">🧾 ' + prodEsc(p.product_name || 'Produit') + '</h3>';
+    if (p.brands) h += '<div style="color:#666;margin-bottom:6px">' + prodEsc(p.brands) + (p.quantity ? ' — ' + prodEsc(p.quantity) : '') + '</div>';
+    h += '<div style="color:#999;font-size:12px;margin-bottom:8px">Code ' + prodEsc(gt) + ' — fiche de la base libre Open Food Facts</div>';
+    if (p.image_front_url_small) h += '<img src="' + prodEsc(p.image_front_url_small) + '" alt="" style="max-height:110px;border-radius:10px;margin:0 0 8px"/>';
+    if (grade && NS[grade]) h += '<div style="margin:6px 0"><span style="display:inline-block;padding:6px 14px;border-radius:8px;background:' + NS[grade] + ';color:#fff;font-weight:bold;font-size:18px">Nutri-Score ' + grade.toUpperCase() + '</span></div>';
+    h += prodNutriWhy(p);
+    if (p.nova_group) {
+      var nv = { 1: 'non transformé ou peu transformé (NOVA 1)', 2: 'ingrédients culinaires (NOVA 2)', 3: 'transformé (NOVA 3)', 4: 'ULTRA-TRANSFORMÉ (NOVA 4)' }[p.nova_group] || '';
+      if (nv) h += '<p style="margin:4px 0">Transformation : ' + (p.nova_group === 4 ? '<b>' + nv + '</b>' : nv) + '</p>';
+    }
+    if (p.additives_n) h += '<p style="margin:4px 0">Additifs : ' + p.additives_n + '</p>';
+    var ing = p.ingredients_text_fr || p.ingredients_text || '';
+    if (ing) h += '<p style="margin:6px 0 0"><b>Ingrédients :</b><br/>' + prodEsc(ing) + '</p>';
+    if (p.allergens && !/^\s*$/.test(p.allergens)) h += '<p style="margin:6px 0;color:#b71c1c"><b>Allergènes :</b> ' + prodEsc(p.allergens) + '</p>';
+    h += '<p style="margin:10px 0 0"><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">Voir la fiche complète sur openfoodfacts.org</a></p>';
+    return h;
+  }
+  function openProductInfo(gt) {
+    if (!gt) return;
+    if (!navigator.onLine) {
+      prodShowModal('<h3 style="margin:4px 0">🧾 Composition / infos produit</h3><p>📴 Pas d’Internet : la recherche de la fiche produit a besoin de la connexion. Tout le reste de l’application fonctionne hors-ligne.</p>');
+      return;
+    }
+    prodShowModal('<h3 style="margin:4px 0">🧾 Composition / infos produit</h3><p>⏳ Recherche de la fiche du produit ' + prodEsc(gt) + ' sur la base libre Open Food Facts…</p>');
+    fetch('https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(gt) + '.json?fields=code,product_name,brands,quantity,image_front_url_small,ingredients_text_fr,ingredients_text,allergens,nutriscore_grade,nutrient_levels,nutriments,additives_n,nova_group')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var p = j && j.product;
+        if (!p || j.status === 0 || (!p.product_name && !p.brands && !p.ingredients_text && !p.nutriscore_grade)) {
+          prodShowModal('<h3 style="margin:4px 0">🧾 Composition / infos produit</h3><p>❌ Ce produit (' + prodEsc(gt) + ') n’est pas encore dans la base libre Open Food Facts (plus de 3 millions de produits alimentaires).</p><p>Les produits récents ou de petites marques manquent parfois : ils ne sont ajoutés que par des contributeurs bénévoles (applications gratuites Open Food Facts ou Yuka).</p><p><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">La page du produit sur openfoodfacts.org</a></p>');
+          return;
+        }
+        prodShowModal(prodHtml(p, gt));
+      })
+      .catch(function (e) {
+        prodShowModal('<h3 style="margin:4px 0">🧾 Composition / infos produit</h3><p>❌ Recherche impossible : ' + prodEsc(e && e.message ? e.message : e) + '. Vérifiez la connexion Internet, puis réessayez.</p>');
+      });
+  }
+  var prodBtn = document.createElement('button');
+  prodBtn.textContent = '🧾 Composition / infos produit';
+  prodBtn.setAttribute('style', 'display:none;margin:8px 0');
+  prodBtn.addEventListener('click', function () { openProductInfo(prodBtn.getAttribute('data-gtin')); });
+  sdInfo.parentNode.insertBefore(prodBtn, sdInfo.nextSibling);
+  function updateProdBtn(value, mapped) {
+    var g = null;
+    if (mapped === 'EAN13' || mapped === 'EAN8' || mapped === 'UPC' || mapped === 'DATA_MATRIX' || mapped === 'ITF14') g = prodGtin(value);
+    if (!g && /^\d{13}$/.test(String(value || '').trim())) g = String(value).trim();
+    if (g) prodBtn.setAttribute('data-gtin', g);
+    prodBtn.style.display = g ? '' : 'none';
   }
 
   /* ================= COULEURS DU CODE (nuances de noir, tampons, feutres) ================= */
@@ -1467,6 +1604,10 @@
       statusEl.className = 'hint err';
       return;
     }
+    /* V27 : on libère TOUTE caméra restée ouverte (autre onglet de l’appli,
+       scan précédent mal refermé) avant d’en demander une nouvelle */
+    try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (eS0) {}
+    stream = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
@@ -1498,8 +1639,22 @@
         stopScan();
       }
     } catch (e) {
-      statusEl.textContent = 'Accès caméra refusé ou indisponible : ' + (e && e.message ? e.message : e) + ' — utilisez « Scanner depuis une photo ».';
+      /* V27 : messages CLAIRS selon la vraie cause (permission refusée, caméra
+         déjà occupée par un autre onglet ou une autre appli, aucune caméra…) */
+      var en = (e && e.name) ? e.name : '', why = '';
+      if (en === 'NotAllowedError' || en === 'PermissionDeniedError') {
+        why = 'l’autorisation caméra a été REFUSÉE. Touchez le petit 🔒 à gauche de l’adresse en haut → Autorisations → Caméra : Autoriser, puis relancez « Démarrer la caméra ».';
+      } else if (en === 'NotReadableError' || en === 'TrackStartError' || en === 'AbortError') {
+        why = 'la caméra est DÉJÀ UTILISÉE par un autre onglet ou une autre application (une autre version de l’appli ouverte, ou l’appli photo). Fermez-la, puis relancez.';
+      } else if (en === 'NotFoundError' || en === 'OverconstrainedError' || en === 'DevicesNotFoundError') {
+        why = 'aucune caméra n’a été trouvée sur cet appareil.';
+      } else {
+        why = (e && e.message ? e.message : e) + '.';
+      }
+      statusEl.textContent = '⚠️ Impossible de démarrer la caméra : ' + why + ' — vous pouvez aussi utiliser « Scanner depuis une photo ».';
       statusEl.className = 'hint err';
+      running = false;
+      startBtn.textContent = '▶︎ Démarrer la caméra';
     }
   }
 
@@ -1637,6 +1792,43 @@
     else if (voted) acceptResult(voted, fmt.raw, null);
   }
 
+  /* ================= V27 : VÉRIFICATION AUTO DU N° SD (caméra) =================
+     Quand la caméra lit une Smart Data, on lit aussi le numéro « SD : … » imprimé
+     à côté (OCR) : si le code est froissé ou abîmé et mal lu, le numéro imprimé
+     (clé de contrôle vérifiée) remplace le numéro faux dans la chaîne. */
+  var sdCheckBusy = false, sdCheckDone = '';
+  function showSdNote(extra) {
+    try {
+      if (sdInfo.innerHTML.indexOf('SD-NOTE-V27') >= 0) return;
+      sdInfo.innerHTML += '<!--SD-NOTE-V27-->' + extra;
+      sdInfo.style.display = '';
+    } catch (eN) {}
+  }
+  function sdAutoCheck(value, format) {
+    if (format !== 'DATA_MATRIX' && format !== 'data_matrix') return;
+    if (sdCheckBusy || sdCheckDone === value) return;
+    var p = sdParse(value);
+    if (!p) return;
+    if (!ocrAvailable()) return;
+    sdCheckBusy = true; sdCheckDone = value;
+    statusEl.className = 'hint';
+    statusEl.textContent = '🔎 Vérification du n° SD imprimé à côté du code…';
+    ocrReadTextDeep(video).then(function (txt) {
+      sdCheckBusy = false;
+      if (!running) return;
+      var rep = sdRepair(value, txt);
+      if (rep) { acceptResult(rep.value, format, rep.note); return; }
+      var printed = sdFromPrinted(txt);
+      if (printed && printed.id === p.id) {
+        showSdNote('✅ N° SD confirmé par le texte imprimé à côté (clé vérifiée ✓).<br/>');
+      } else if (!printed && !p.keyGiven && !p.keyChecked) {
+        showSdNote('⚠️ N° SD non confirmé : clé absente du code et texte imprimé illisible ici. Si l’étiquette est abîmée, comparez avec le numéro « SD : … » imprimé à côté.<br/>');
+      }
+      statusEl.className = 'hint';
+      statusEl.textContent = 'Visez le code-barres, la détection est automatique.';
+    }).catch(function () { sdCheckBusy = false; });
+  }
+
   function acceptResult(value, format, note) {
     var now = Date.now();
     if (lastVal === value && now - cooldown < 4000) return;
@@ -1668,6 +1860,7 @@
     }
     resetCandidates();
     acceptResult(value, format, null);
+    if (running) sdAutoCheck(value, format); /* V27 : vérifie le n° SD sur le texte imprimé */
   }
 
   /* ================= RÉSULTAT / AFFICHAGE ================= */
@@ -1702,6 +1895,7 @@
     repairNote.style.display = note ? '' : 'none';
     repairNote.textContent = note;
     showSdInfo(value, mapped);
+    try { updateProdBtn(value, mapped); } catch (ePr) {} /* V27 : fiche produit si code EAN / UPC / DataMatrix GS1 */
     if (mapped === 'QR_CODE') { mode = 'qr'; }
     else if (mapped === 'DATA_MATRIX') { mode = 'dm'; }
     else if (mapped) { mode = 'bc'; }
