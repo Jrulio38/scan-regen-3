@@ -50,6 +50,12 @@
   .flashBtn.on { background:linear-gradient(135deg,#16a34a,#15803d); }   /* vert = flash allumé */
   .flashBtn.off { background:linear-gradient(135deg,#dc2626,#b91c1c); }  /* rouge = flash éteint */
   .flashBtn.auto { background:linear-gradient(135deg,#ea580c,#c2410c); } /* orange = flash auto */
+  /* V8 : le :hover de button.sec écrasait les couleurs d'état (spécificité supérieure)
+     → règles hover/actif explicites + couleurs inline posées en JS (updateFlashUI) */
+  .flashBtn.on:hover, .flashBtn.on:active { background:linear-gradient(135deg,#16a34a,#15803d) !important; }
+  .flashBtn.off:hover, .flashBtn.off:active { background:linear-gradient(135deg,#dc2626,#b91c1c) !important; }
+  .flashBtn.auto:hover, .flashBtn.auto:active { background:linear-gradient(135deg,#ea580c,#c2410c) !important; }
+  #tapBox canvas { cursor:crosshair; }
   .switch { position:relative; display:inline-block; width:54px; height:28px; flex:none; }
   .switch input { opacity:0; width:0; height:0; }
   .slider { position:absolute; cursor:pointer; inset:0; background:#dc2626; border-radius:28px; transition:.2s; }
@@ -92,7 +98,7 @@
 </style>
 </head>
 <body>
-  <h1>🚀 Scan &amp; Régénère <span class="v3">3</span></h1>
+  <h1 style="display:flex;align-items:center"><svg width="42" height="42" viewBox="0 0 42 42" style="vertical-align:middle;margin-right:9px;flex:none"><defs><linearGradient id="lg3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#06b6d4"/><stop offset=".55" stop-color="#7c3aed"/><stop offset="1" stop-color="#db2777"/></linearGradient><clipPath id="cb3"><circle cx="21" cy="21" r="8.4"/></clipPath></defs><rect x="0.7" y="0.7" width="40.6" height="40.6" rx="9" fill="#0a0817" stroke="url(#lg3)" stroke-width="1.5"/><rect x="0.6" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="12.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="15.9" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="19.7" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="23.5" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="27.3" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="31.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="35.0" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="0.6" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="12.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="15.9" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="19.7" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="23.5" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="27.3" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="31.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="35.0" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="4.4" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="12.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="15.9" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="23.5" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="27.3" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="31.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="35.0" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="8.2" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="12.1" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="12.1" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="12.1" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="12.1" y="31.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="12.1" y="35.0" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="12.1" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="15.9" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="15.9" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="15.9" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="15.9" y="31.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="15.9" y="35.0" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="15.9" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="19.7" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="19.7" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="19.7" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="23.5" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="23.5" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="23.5" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="23.5" y="31.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="23.5" y="35.0" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="27.3" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="27.3" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="27.3" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="27.3" y="35.0" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="27.3" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="31.1" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="31.1" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="31.1" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="31.1" y="12.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="31.1" y="15.9" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="31.1" y="19.7" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="31.1" y="31.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="31.1" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="35.0" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="35.0" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="35.0" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="35.0" y="12.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="35.0" y="15.9" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="35.0" y="23.5" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="35.0" y="35.0" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="35.0" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="0.6" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="4.4" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="8.2" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="12.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="15.9" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="19.7" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="27.3" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="31.1" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><rect x="38.8" y="38.8" width="2.6" height="2.6" rx="1.1" fill="url(#lg3)"/><g clip-path="url(#cb3)"><rect x="14.2" y="14.6" width="1.3" height="12.8" fill="#cdd4ff" opacity=".8"/><rect x="16.4" y="14.6" width="2.4" height="12.8" fill="#cdd4ff" opacity=".8"/><rect x="19.4" y="14.6" width="1" height="12.8" fill="#cdd4ff" opacity=".8"/><rect x="21.3" y="14.6" width="2.2" height="12.8" fill="#cdd4ff" opacity=".8"/><rect x="24.2" y="14.6" width="1.2" height="12.8" fill="#cdd4ff" opacity=".8"/><rect x="26.1" y="14.6" width="1.7" height="12.8" fill="#cdd4ff" opacity=".8"/></g><circle cx="21" cy="21" r="8.4" fill="none" stroke="url(#lg3)" stroke-width="1.7"/><text x="21" y="23.8" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="8.2" fill="#fff" paint-order="stroke" stroke="#0a0817" stroke-width="1">V3</text></svg><span>Scan &amp; Régénère <span class="v3">3</span></span></h1>
   <div class="sub">Édition 3 — nouveau design, plus rapide. Scanne un code abîmé avec la caméra ou une photo : il est régénéré en QR code, code-barres ou DataMatrix propre (Smart Data La Poste reconnue). La génération fonctionne hors-ligne.</div>
 
   <div class="card" id="scanCard">
@@ -124,6 +130,7 @@
     <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" />
     <canvas id="zxCanvas" style="display:none"></canvas>
     <div id="scanStatus" class="hint">Visez le code-barres, la détection est automatique.</div>
+    <div id="tapBox" style="display:none;margin-top:10px;text-align:center"></div>
     <div id="libStatus" class="hint"></div>
   </div>
 
@@ -151,6 +158,7 @@
     <div class="val" id="val"></div>
     <div class="hint" id="repairNote" style="display:none"></div>
     <div class="hint" id="sdInfo" style="display:none"></div>
+    <div class="hint" id="addrInfo" style="display:none"></div>
     <div style="display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap">
       <span class="hint" style="margin:0">🎨 Couleur du code régénéré :</span>
       <input type="color" id="genColor" value="#000000" style="width:46px;height:32px;border:1px solid #ccc;border-radius:6px;background:none;padding:2px" />
@@ -176,6 +184,7 @@
     <div class="hint">Autres types lisibles à la caméra : QR Code, DataMatrix, PDF417, Code 93, Codabar, UPC-E.</div>
     <div id="output"></div>
     <div class="hint" id="verifyNote" style="display:none"></div>
+    <div id="linkInfo" style="display:none;margin:8px 0;font-size:.95rem"></div>
     <button id="fullBtn">⤢ Afficher en plein écran</button>
     <button class="sec" id="pngBtn"> Télécharger en image (PNG)</button>
     <button class="sec" id="printBtn">️ Imprimer / PDF</button>
@@ -230,6 +239,9 @@
   var fullBtn = document.getElementById('fullBtn');
   var pngBtn = document.getElementById('pngBtn');
   var verifyNote = document.getElementById('verifyNote');
+  var addrInfo = document.getElementById('addrInfo');
+  var linkInfo = document.getElementById('linkInfo');
+  var tapBox = document.getElementById('tapBox');
   var printBtn = document.getElementById('printBtn');
   var historyEl = document.getElementById('history');
   var emptyHist = document.getElementById('emptyHist');
@@ -1705,16 +1717,16 @@
     flashBtn.style.display = '';
     if (!torchSupported) {
       flashBtn.disabled = true;
-      flashBtn.className = 'sec flashBtn';
+      flashBtn.className = 'sec flashBtn'; flashBtn.style.background = '';
       flashBtn.textContent = ' Flash indisponible';
       flashHint.style.display = '';
       flashHint.textContent = ' La lampe n’est pas disponible sur ce navigateur (essayez avec Chrome).';
     } else {
       flashBtn.disabled = false;
       flashHint.style.display = 'none';
-      if (torchMode === 'on') { flashBtn.className = 'sec flashBtn on'; flashBtn.textContent = ' Flash : allumé'; }
-      else if (torchMode === 'off') { flashBtn.className = 'sec flashBtn off'; flashBtn.textContent = ' Flash : éteint'; }
-      else { flashBtn.className = 'sec flashBtn auto'; flashBtn.textContent = ' Flash : auto (lampe ' + (torchOn ? 'ON' : 'OFF') + ')'; }
+      if (torchMode === 'on') { flashBtn.className = 'sec flashBtn on'; flashBtn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)'; flashBtn.textContent = ' Flash : allumé'; }
+      else if (torchMode === 'off') { flashBtn.className = 'sec flashBtn off'; flashBtn.style.background = 'linear-gradient(135deg,#dc2626,#b91c1c)'; flashBtn.textContent = ' Flash : éteint'; }
+      else { flashBtn.className = 'sec flashBtn auto'; flashBtn.style.background = 'linear-gradient(135deg,#ea580c,#c2410c)'; flashBtn.textContent = ' Flash : auto (lampe ' + (torchOn ? 'ON' : 'OFF') + ')'; }
     }
   }
   flashBtn.addEventListener('click', function () {
@@ -1991,6 +2003,143 @@
     }).catch(function () { sdCheckBusy = false; });
   }
 
+  /* ===== V8 : ADRESSE DESTINATAIRE / EXPÉDITEUR RECONNUE SUR L'ÉTIQUETTE ===== */
+  /* La reconnaissance de texte cherche un bloc adresse : nom (M., MME…), voie
+     (RUE, AVENUE, BOULEVARD, CHEMIN…) et code postal + ville. Affiché « à
+     vérifier » : la lecture optique peut se tromper sur une lettre. */
+  function escX(x) { return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+  function addressScan(txt) {
+    if (!txt) return null;
+    var lines = String(txt).split(/\n+/).map(function (s) { return s.trim(); }).filter(function (s) { return s.length >= 4; });
+    var STREET = /(RUE|AVENUE|AV\.|BOULEVARD|BD|BOUL\.|CHEMIN|CHE\.|ALL[ÉE]E|IMPASSE|PLACE|PL\.|ROUTE|LOTISSEMENT|R[ÉE]SIDENCE|QUAI|COURS|SQUARE|PARC|R[ÉE]SIDENCE)/i;
+    var NAME = /^(M|MR|MME|MONSIEUR|MADAME)\b|[A-Z]{3,}(\s[A-Z]{2,})+$/;
+    var postalIdx = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (/\b\d{5}\s+[A-ZÀÂÇÉÈÊÎÔÛ' -]{3,}/.test(lines[i].toUpperCase())) { postalIdx = i; break; }
+    }
+    if (postalIdx < 0) return null;
+    var out = [];
+    for (var j = Math.max(0, postalIdx - 2); j <= postalIdx; j++) {
+      var L = lines[j];
+      if (STREET.test(L) || NAME.test(L) || j === postalIdx) out.push(L);
+    }
+    if (!out.length) return null;
+    /* nettoyage : retirer les suites de chiffres isolées (numéros de suivi mêlés) */
+    return out.join('\n');
+  }
+  function showAddressInfo(txt) {
+    if (!txt) return;
+    addrInfo.style.display = '';
+    addrInfo.innerHTML = '<b>🏠 Adresse destinataire et/ou expéditeur reconnue :</b><br/>' +
+      String(txt).split('\n').map(function (l) { return escX(l); }).join('<br/>') +
+      '<br/><span style="opacity:.85">⚠️ Lue sur l\u2019étiquette par reconnaissance de texte — vérifiez avant usage.</span>';
+  }
+
+  /* ===== V8 : LIEN INTERNET RECONNU DANS LE CODE ===== */
+  function showLinkInfo(value) {
+    linkInfo.style.display = 'none';
+    linkInfo.innerHTML = '';
+    var m = String(value || '').match(/(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/i);
+    if (!m) return;
+    var url = m[1];
+    if (/^www\./i.test(url)) url = 'https://' + url;
+    linkInfo.style.display = '';
+    linkInfo.innerHTML = '<a href="' + escX(url) + '" target="_blank" rel="noopener" style="color:#22d3ee;font-weight:600">🌐 Site reconnu dans le code — toucher pour ouvrir : ' + escX(url) + '</a>';
+  }
+
+  /* ===== V8 : SÉLECTION PAR APPUI SUR L'ÉCRAN ===== */
+  /* La photo analysée s'affiche ; un appui sur l'écran lit exactement ce qui se
+     trouve à cet endroit : d'abord un QR / code-barres dans la zone (relu par le
+     moteur), sinon les lettres, chiffres et caractères imprimés (OCR), sinon
+     une adresse. Le résultat s'ouvre comme après un scan normal. */
+  function tapSetup(img) {
+    tapBox.style.display = '';
+    tapBox.innerHTML = '';
+    var W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+    if (!W || !H) return;
+    var sc = Math.min(1, 700 / Math.max(W, H));
+    var c = document.createElement('canvas');
+    c.width = Math.round(W * sc); c.height = Math.round(H * sc);
+    c.setAttribute('style', 'max-width:100%;height:auto;border-radius:12px;border:1px solid rgba(167,139,250,.3);cursor:crosshair');
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    tapBox.appendChild(c);
+    var hint = document.createElement('div');
+    hint.className = 'hint';
+    hint.style.margin = '6px 0 0';
+    hint.textContent = '👇 La lecture automatique échoue ? TOUCHEZ la photo à l\u2019endroit des chiffres, lettres ou du code à lire.';
+    tapBox.appendChild(hint);
+    c.addEventListener('click', function (e) {
+      var r = c.getBoundingClientRect();
+      var fx = (e.clientX - r.left) / r.width;
+      var fy = (e.clientY - r.top) / r.height;
+      if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+      tapZoneRead(img, fx, fy);
+    });
+  }
+  function tapZoneRead(img, fx, fy) {
+    var zw = 0.44, zh = 0.30;
+    var zx = Math.max(0, Math.min(1 - zw, fx - zw / 2));
+    var zy = Math.max(0, Math.min(1 - zh, fy - zh / 2));
+    var zone = { x: zx, y: zy, w: zw, h: zh };
+    statusEl.className = 'hint';
+    statusEl.textContent = '🔎 Lecture de ce que vous avez touché…';
+    var zc = null;
+    try { zc = ocrPrepareCanvas(img, zone); } catch (eC) { zc = null; }
+    /* 1) un QR / code-barre se trouve-t-il à cet endroit ? */
+    if (zc && window.ZXing && getReader()) {
+      try {
+        var rz = zxDecodeLs(new ZXing.HTMLCanvasElementLuminanceSource(zc));
+        if (rz && rz.text) {
+          statusEl.textContent = '✅ Code trouvé à l\u2019endroit que vous avez touché.';
+          acceptResult(rz.text, rz.format, '✅ Code lu à l\u2019endroit que vous avez touché sur la photo — vérifiez avant usage.');
+          return;
+        }
+      } catch (eZ) {}
+    }
+    /* 2) sinon : lecture des lettres / chiffres / caractères à cet endroit */
+    if (!ocrAvailable()) {
+      statusEl.className = 'hint err';
+      statusEl.textContent = '❌ Test échoué — la lecture du texte n\u2019est pas encore chargée (rechargez une fois avec Internet) ; touchez à nouveau après.';
+      return;
+    }
+    if (!zc) {
+      statusEl.className = 'hint err';
+      statusEl.textContent = '❌ Test échoué — impossible de lire cette zone. Retouchez la photo plus précisément.';
+      return;
+    }
+    getOcrEngine().then(function (w) { return w.recognize(zc); }).then(function (res) {
+      var txt = res && res.data && res.data.text ? res.data.text : '';
+      var sdPr = null; try { sdPr = sdFromPrinted(txt); } catch (eS) { sdPr = null; }
+      if (sdPr) {
+        statusEl.textContent = '✅ N° SD lu à l\u2019endroit touché (clé vérifiée ✓).';
+        pendingNote = '📮 N° SD sélectionné en touchant la photo (clé de contrôle vérifiée ✓). Vérifiez avant usage.';
+        openResult(sdPr.id + sdPr.key, ocrGuessFormat(sdPr.id + sdPr.key));
+        var a1 = null; try { a1 = addressScan(txt); } catch (eA) {}
+        if (a1) showAddressInfo(a1);
+        return;
+      }
+      var cands = ocrCandidates(txt);
+      var a2 = null; try { a2 = addressScan(txt); } catch (eA2) {}
+      if (cands.length) {
+        statusEl.textContent = '✅ Texte lu à l\u2019endroit que vous avez touché.';
+        pendingNote = '🔎 Sélectionné en touchant la photo : vérifiez le numéro avant usage.';
+        openResult(cands[0], ocrGuessFormat(cands[0]));
+        if (a2) showAddressInfo(a2);
+        return;
+      }
+      if (a2) {
+        showAddressInfo(a2);
+        statusEl.textContent = '✅ Adresse reconnue à l\u2019endroit touché — voir la carte résultat.';
+        return;
+      }
+      statusEl.className = 'hint err';
+      statusEl.textContent = '❌ Test échoué — rien de lisible à cet endroit. Touchez la photo plus précisément sur les chiffres ou lettres, ou reprenez la photo.';
+    }).catch(function () {
+      statusEl.className = 'hint err';
+      statusEl.textContent = '❌ Test échoué — lecture impossible ici. Touchez plus précisément, ou reprenez la photo.';
+    });
+  }
+
   function acceptResult(value, format, note) {
     var now = Date.now();
     if (lastVal === value && now - cooldown < 4000) return;
@@ -2057,6 +2206,8 @@
     repairNote.style.display = note ? '' : 'none';
     repairNote.textContent = note;
     showSdInfo(value, mapped);
+    addrInfo.style.display = 'none';
+    showLinkInfo(value);
     showCourierInfo(value, mapped);
     try { updateProdBtn(value, mapped); } catch (ePr) {} /* V27 : fiche produit si code EAN / UPC / DataMatrix GS1 */
     if (mapped === 'QR_CODE') { mode = 'qr'; }
@@ -2821,6 +2972,7 @@
     var url = URL.createObjectURL(f);
     var img = new Image();
     img.onload = function () {
+      tapSetup(img);
       lastCodeBox = null;
       colorNote.textContent = '';
       var done = false;
@@ -2861,6 +3013,8 @@
             repairNote.style.display = '';
             repairNote.textContent = '⚠️ Écart entre le code et le texte imprimé à côté : vérifiez le numéro avant de l’utiliser.';
           }
+          var adr0 = null; try { adr0 = addressScan(txt); } catch (eAd) { adr0 = null; }
+          if (adr0) showAddressInfo(adr0);
         }).catch(function () { onDetected(value, format); });
       }
       /* si le code est illisible : récupère le numéro imprimé À CÔTÉ du code (timbre, recommandé…) */
@@ -2901,7 +3055,7 @@
             openResult(best.v, ocrGuessFormat(best.v));
           } else {
             statusEl.className = 'hint err';
-            statusEl.textContent = '❌ Test échoué — aucun code détecté et aucun numéro lisible à côté. Rapprochez-vous du code ET du texte imprimé, photo nette et bien éclairée. Si le code est DÉCHIRÉ en deux, cadrez les DEUX morceaux proches l’un de l’autre sur la même photo. Sinon, tapez le numéro vous-même dans la carte « ✍️ Générer un code depuis un texte » en bas de page.';
+            statusEl.textContent = '❌ Test échoué — aucun code ni numéro lu automatiquement. 👇 TOUCHEZ la photo ci-dessous sur les chiffres ou lettres à lire, ou reprenez la photo plus près. Dernière solution : tapez le numéro dans la carte « ✍️ Générer un code depuis un texte ».';
           }
         });
       }
