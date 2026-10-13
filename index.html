@@ -1151,7 +1151,7 @@
 
   /* ================= V27 : INFOS PRODUIT (Open Food Facts) =================
      Après un scan de code produit (EAN-13, EAN-8, UPC, DataMatrix GS1), la
-     touche « 🧾 Composition / infos produit » ouvre la fiche du produit :
+     touche « 🧾 Composition / type de produit » ouvre la fiche du produit :
      nom, marque, Nutri-Score et POURQUOI cette note (points défavorables),
      ingrédients, allergènes, additifs. Base libre Open Food Facts — cette
      touche a besoin d’Internet, tout le reste de l’appli reste hors-ligne. */
@@ -1219,6 +1219,20 @@
     h += '<div style="color:#999;font-size:12px;margin-bottom:8px">Code ' + prodEsc(gt) + ' — fiche de la base libre Open Food Facts</div>';
     if (p.image_front_url_small) h += '<img src="' + prodEsc(p.image_front_url_small) + '" alt="" style="max-height:110px;border-radius:10px;margin:0 0 8px"/>';
     if (grade && NS[grade]) h += '<div style="margin:6px 0"><span style="display:inline-block;padding:6px 14px;border-radius:8px;background:' + NS[grade] + ';color:#fff;font-weight:bold;font-size:18px">Nutri-Score ' + grade.toUpperCase() + '</span></div>';
+    var nsS = null;
+    try { nsS = p.nutriscore_score; } catch (eNs) { nsS = null; }
+    /* note indicative /100 comme sur les comparateurs : le Nutri-Score va de
+       -15 (excellent) à +40 (très mauvais) → on le ramène sur 100 points */
+    var note100 = null;
+    if (typeof nsS === 'number') note100 = Math.max(0, Math.min(100, Math.round((40 - nsS) * 100 / 55)));
+    if (note100 === null && grade) {
+      var approxN = { a: 90, b: 70, c: 50, d: 30, e: 10 };
+      note100 = approxN[grade] || null;
+    }
+    if (note100 !== null) {
+      var nCol = note100 >= 75 ? '#038141' : (note100 >= 50 ? '#85BB2F' : (note100 >= 30 ? '#EE8100' : '#E63E08'));
+      h += '<div style="margin:6px 0"><span style="display:inline-block;padding:4px 12px;border-radius:8px;background:' + nCol + ';color:#fff;font-weight:bold">Note indicative : ' + note100 + '/100</span> <span style="color:#666;font-size:12px">— note calculée comme sur les applications de comparaison (type Yuka), à partir du Nutri-Score officiel</span></div>';
+    }
     h += prodNutriWhy(p);
     if (p.nova_group) {
       var nv = { 1: 'non transformé ou peu transformé (NOVA 1)', 2: 'ingrédients culinaires (NOVA 2)', 3: 'transformé (NOVA 3)', 4: 'ULTRA-TRANSFORMÉ (NOVA 4)' }[p.nova_group] || '';
@@ -1234,35 +1248,79 @@
   function openProductInfo(gt) {
     if (!gt) return;
     if (!navigator.onLine) {
-      prodShowModal('<h3 style="margin:4px 0">🧾 Composition / infos produit</h3><p>📴 Pas d’Internet : la recherche de la fiche produit a besoin de la connexion. Tout le reste de l’application fonctionne hors-ligne.</p>');
+      prodShowModal('<h3 style="margin:4px 0">🧾 Composition / type de produit</h3><p>📴 Pas d’Internet : la recherche de la fiche produit a besoin de la connexion. Tout le reste de l’application fonctionne hors-ligne.</p>');
       return;
     }
-    prodShowModal('<h3 style="margin:4px 0">🧾 Composition / infos produit</h3><p>⏳ Recherche de la fiche du produit ' + prodEsc(gt) + ' sur la base libre Open Food Facts…</p>');
-    fetch('https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(gt) + '.json?fields=code,product_name,brands,quantity,image_front_url_small,ingredients_text_fr,ingredients_text,allergens,nutriscore_grade,nutrient_levels,nutriments,additives_n,nova_group')
+    prodShowModal('<h3 style="margin:4px 0">🧾 Composition / type de produit</h3><p>⏳ Recherche de la fiche du produit ' + prodEsc(gt) + ' sur la base libre Open Food Facts…</p>');
+    fetch('https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(gt) + '.json?fields=code,product_name,brands,quantity,image_front_url_small,ingredients_text_fr,ingredients_text,allergens,nutriscore_grade,nutriscore_score,nutrient_levels,nutriments,additives_n,nova_group')
       .then(function (r) { return r.json(); })
       .then(function (j) {
         var p = j && j.product;
         if (!p || j.status === 0 || (!p.product_name && !p.brands && !p.ingredients_text && !p.nutriscore_grade)) {
-          prodShowModal('<h3 style="margin:4px 0">🧾 Composition / infos produit</h3><p>❌ Ce produit (' + prodEsc(gt) + ') n’est pas encore dans la base libre Open Food Facts (plus de 3 millions de produits alimentaires).</p><p>Les produits récents ou de petites marques manquent parfois : ils ne sont ajoutés que par des contributeurs bénévoles (applications gratuites Open Food Facts ou Yuka).</p><p><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">La page du produit sur openfoodfacts.org</a></p>');
+          prodShowModal('<h3 style="margin:4px 0">🧾 Composition / type de produit</h3><p>❌ Caractéristiques et composition non trouvées pour ce produit.</p><p>Ce produit (' + prodEsc(gt) + ') n’est pas encore dans la base libre Open Food Facts (plus de 3 millions de produits alimentaires).</p><p>Les produits récents ou de petites marques manquent parfois : ils ne sont ajoutés que par des contributeurs bénévoles (applications gratuites Open Food Facts ou Yuka).</p><p><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">La page du produit sur openfoodfacts.org</a></p>');
           return;
         }
         prodShowModal(prodHtml(p, gt));
       })
       .catch(function (e) {
-        prodShowModal('<h3 style="margin:4px 0">🧾 Composition / infos produit</h3><p>❌ Recherche impossible : ' + prodEsc(e && e.message ? e.message : e) + '. Vérifiez la connexion Internet, puis réessayez.</p>');
+        prodShowModal('<h3 style="margin:4px 0">🧾 Composition / type de produit</h3><p>❌ Recherche impossible : ' + prodEsc(e && e.message ? e.message : e) + '. Vérifiez la connexion Internet, puis réessayez.</p>');
       });
   }
+  /* V32 : caractéristiques d'un produit La Poste (type d'envoi, n° SD, suivi) —
+     tout est calculé sur l'appareil à partir du numéro, SANS Internet. Le lien
+     de suivi ne s'ouvre que si vous le choisissez. */
+  function openPosteInfo(value) {
+    var v = String(value || '');
+    var h = '<h3 style="margin:4px 0">' + '🧾 Composition / type de produit' + '</h3>';
+    var p = null; try { p = sdParse(v); } catch (eP) { p = null; }
+    if (p) {
+      h += '<p style="margin:8px 0 2px"><b>Produit :</b> ' + prodEsc(sdProduct(p.id)) + '</p>';
+      var rM = (p.client || '').toUpperCase().match(/R[123]/);
+      if (rM) h += '<p style="margin:2px 0">Niveau de recommandation : ' + rM[0] + ' (indiqué dans la zone client)</p>';
+      h += '<p style="margin:6px 0 2px"><b>N° SD :</b> ' + prodEsc(p.id) + ' — clé de contrôle ' + prodEsc(p.keyCalc) +
+        (p.keyGiven ? ' (présente dans le code et vérifiée ✓)' : ' (calculée automatiquement ✓ — elle est facultative dans le code)') + '</p>';
+      if (p.client) h += '<p style="margin:2px 0"><b>Zone client (après ^) :</b> ' + prodEsc(p.client) + '</p>';
+    }
+    var cg = null; try { cg = courierGuess(v); } catch (eC2) { cg = null; }
+    if (cg) {
+      h += '<p style="margin:6px 0 2px"><b>Transporteur :</b> ' + prodEsc(cg.carrier) + (cg.unsure ? ' (à confirmer)' : '') + '</p>';
+      h += '<p style="margin:2px 0"><b>Type d’envoi :</b> ' + prodEsc(cg.product) + '</p>';
+      h += '<p style="margin:2px 0;color:#666">' + prodEsc(cg.detail) + '</p>';
+    }
+    if (!p && !cg) {
+      prodShowModal(h + '<p style="margin:8px 0">❌ Caractéristiques et composition non trouvées pour ce produit.</p>');
+      return;
+    }
+    var trackNo = p ? p.id : v.replace(/\s+/g, '');
+    h += '<p style="margin:10px 0 0"><a href="https://www.laposte.fr/outils/suivre-vos-envois?code=' + encodeURIComponent(trackNo) + '" target="_blank" rel="noopener" style="color:#1565c0">Suivre cet envoi sur le site de La Poste (s’ouvre seulement si vous touchez le lien)</a></p>';
+    prodShowModal(h);
+  }
   var prodBtn = document.createElement('button');
-  prodBtn.textContent = '🧾 Composition / infos produit';
+  prodBtn.textContent = '🧾 Composition / type de produit';
   prodBtn.setAttribute('style', 'display:none;margin:8px 0');
-  prodBtn.addEventListener('click', function () { openProductInfo(prodBtn.getAttribute('data-gtin')); });
+  prodBtn.addEventListener('click', function () {
+    var g = prodBtn.getAttribute('data-gtin');
+    if (g) { openProductInfo(g); return; }
+    openPosteInfo(prodBtn.getAttribute('data-val'));
+  });
   sdInfo.parentNode.insertBefore(prodBtn, sdInfo.nextSibling);
   function updateProdBtn(value, mapped) {
     var g = null;
     if (mapped === 'EAN13' || mapped === 'EAN8' || mapped === 'UPC' || mapped === 'DATA_MATRIX' || mapped === 'ITF14') g = prodGtin(value);
     if (!g && /^\d{13}$/.test(String(value || '').trim())) g = String(value).trim();
-    if (g) prodBtn.setAttribute('data-gtin', g);
-    prodBtn.style.display = g ? '' : 'none';
+    /* V32 : le bouton s'affiche AUSSI pour un produit La Poste (Smart Data,
+       lettre suivie, Colissimo, recommandée…) — la fiche est alors hors-ligne,
+       calculée à partir du numéro lui-même */
+    var poste = false;
+    if (!g) {
+      var isEan = mapped === 'EAN13' || mapped === 'EAN8' || mapped === 'UPC' || mapped === 'ITF14';
+      var sdP = null; try { sdP = sdParse(value); } catch (eS) { sdP = null; }
+      var cgP = null; try { if (!isEan) cgP = courierGuess(value); } catch (eC) { cgP = null; }
+      poste = !!(sdP || cgP);
+    }
+    prodBtn.setAttribute('data-val', String(value || ''));
+    if (g) prodBtn.setAttribute('data-gtin', g); else prodBtn.removeAttribute('data-gtin');
+    prodBtn.style.display = (g || poste) ? '' : 'none';
   }
 
   /* ================= COULEURS DU CODE (nuances de noir, tampons, feutres) ================= */
