@@ -166,6 +166,11 @@
     </div>
     <input type="text" id="editVal" placeholder="…ou saisissez un code à la main — ? = chiffre illisible (retrouvé automatiquement)" />
     <button class="sec" id="applyBtn">↻ Régénérer avec cette valeur</button>
+    <div id="sideWrap" style="display:none;margin-top:8px">
+      <div class="hint" style="margin:0 0 4px">📋 Données lues à côté du code — numéro, lettres, chiffres, caractères imprimés :</div>
+      <textarea id="sideData" rows="3" style="width:100%;min-height:64px;border-radius:12px;border:1px solid rgba(167,139,250,.3);background:rgba(167,139,250,.06);color:inherit;padding:8px;font:inherit;box-sizing:border-box" placeholder="Texte imprimé à côté du code, recopié ici automatiquement. Vous pouvez le corriger, puis touchez le bouton ci-dessous."></textarea>
+      <button class="sec" id="sideUse">➡️ Recopier dans la case numéro (et régénérer)</button>
+    </div>
 
     <div class="tabs">
       <button id="tabQr" class="active">QR Code</button>
@@ -220,6 +225,9 @@
   var valEl = document.getElementById('val');
   var editVal = document.getElementById('editVal');
   var applyBtn = document.getElementById('applyBtn');
+  var sideWrap = document.getElementById('sideWrap');
+  var sideData = document.getElementById('sideData');
+  var sideUse = document.getElementById('sideUse');
   var output = document.getElementById('output');
   var tabQr = document.getElementById('tabQr');
   var tabBc = document.getElementById('tabBc');
@@ -1743,6 +1751,7 @@
   });
 
   async function startScan() {
+    sideClear();
     if (running) { stopScan(); return; }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       statusEl.textContent = 'Caméra indisponible ici : utilisez « Scanner depuis une photo » ou hébergez la page en HTTPS.';
@@ -1982,6 +1991,7 @@
     statusEl.className = 'hint';
     statusEl.textContent = '🔎 Vérification du n° SD imprimé à côté du code…';
     ocrReadTextDeep(video).then(function (txt) {
+      setPrinted(txt);
       sdCheckBusy = false;
       if (!running) return;
       var rep = p ? sdRepair(value, txt) : null;
@@ -2109,6 +2119,7 @@
     }
     getOcrEngine().then(function (w) { return w.recognize(zc); }).then(function (res) {
       var txt = res && res.data && res.data.text ? res.data.text : '';
+      setPrinted(txt);
       var sdPr = null; try { sdPr = sdFromPrinted(txt); } catch (eS) { sdPr = null; }
       if (sdPr) {
         statusEl.textContent = '✅ N° SD lu à l\u2019endroit touché (clé vérifiée ✓).';
@@ -2139,6 +2150,35 @@
       statusEl.textContent = '❌ Test échoué — lecture impossible ici. Touchez plus précisément, ou reprenez la photo.';
     });
   }
+
+  /* ===== V33 : DONNÉES LUES À CÔTÉ DU CODE (numéro, lettres, chiffres, caractères) =====
+     Le texte imprimé à côté du code est recopié dans la case dédiée de la carte
+     résultat. Un bouton le recopie dans la case numéro pour régénérer le
+     code-barres, QR code, DataMatrix ou Smart Data. */
+  var lastPrintedTxt = '';
+  function setPrinted(txt) {
+    lastPrintedTxt = String(txt || '');
+    if (lastPrintedTxt.trim()) {
+      sideData.value = lastPrintedTxt.trim();
+      sideWrap.style.display = '';
+    }
+  }
+  function sideClear() {
+    lastPrintedTxt = '';
+    sideData.value = '';
+    sideWrap.style.display = 'none';
+  }
+  sideUse.addEventListener('click', function () {
+    var t = String(sideData.value || '').trim();
+    if (!t) return;
+    /* priorité : n° SD imprimé (clé vérifiée) > meilleur candidat (clé valide) > texte entier */
+    var sdP = null; try { sdP = sdFromPrinted(t); } catch (eS) { sdP = null; }
+    var best = null;
+    try { var cs = ocrCandidates(t); if (cs.length) best = ocrBestCandidate(cs).v; } catch (eO) { best = null; }
+    var v = sdP ? (sdP.id + sdP.key) : (best || t.replace(/\s*\n\s*/g, ' ').trim());
+    pendingNote = '📋 Numéro recopié depuis les données lues à côté du code — vérifiez-le avant de l’utiliser.';
+    openResult(v, ocrGuessFormat(v));
+  });
 
   function acceptResult(value, format, note) {
     var now = Date.now();
@@ -2989,6 +3029,7 @@
         applyCodeColors(img);
         if (!ocrAvailable()) { onDetected(value, format); return; }
         ocrReadTextDeep(img).then(function (txt) {
+          setPrinted(txt);
           var rep = crossRepair(value, txt, format);
           if (rep) { acceptResult(rep.value, format, rep.note); return; }
           var repSd = sdRepair(value, txt);
@@ -3038,6 +3079,7 @@
         statusEl.className = 'hint';
         statusEl.textContent = ' Code illisible — lecture des chiffres, lettres et symboles écrits à côté…';
         ocrReadTextDeep(img).then(function (txt) {
+          setPrinted(txt);
           var cands = ocrCandidates(txt);
           var sdPr = null; try { sdPr = sdFromPrinted(txt); } catch (eSd) { sdPr = null; }
           if (sdPr) {
