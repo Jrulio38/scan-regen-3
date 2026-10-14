@@ -114,6 +114,7 @@
     <button class="sec flashBtn auto" id="flashBtn" style="display:none;margin-top:10px"> Flash : auto</button>
     <div id="flashHint" class="hint" style="display:none"></div>
     <button class="sec" id="photoBtn">️ Scanner depuis une photo</button>
+    <button class="sec" id="nfcBtn">📡 Autocollant NFC — scanner son QR code (page dédiée)</button>
     <div class="hint" style="margin-top:10px;margin-bottom:0"> Type de code à lire (facultatif — améliore la reconnaissance) :</div>
     <select id="scanFormat">
       <option value="auto">Tous les types (détection automatique)</option>
@@ -141,6 +142,8 @@
     <button class="sec" id="genBcBtn">⊢ Générer un code-barres (type choisi dessous)</button>
     <button class="sec" id="genDmBtn">⬛ Générer un DataMatrix (suivi, Smart Data, timbres — max 114 caractères)</button>
     <select id="genFormat">
+      <option value="__QR">QR Code → basculer sur l’onglet QR Code (tout texte, lien, Wi-Fi…)</option>
+      <option value="__DM">DataMatrix → basculer sur l’onglet DataMatrix (Smart Data La Poste…)</option>
       <option value="CODE128">Code 128 (le plus universel)</option>
       <option value="EAN13">EAN-13 (13 chiffres, produits)</option>
       <option value="EAN8">EAN-8 (8 chiffres)</option>
@@ -2284,6 +2287,8 @@
     code_128:'CODE128', code_39:'CODE39', itf:'ITF14', itf_14:'ITF14' };
 
   function openResult(value, format) {
+    /* V11 : mode NFC → le code scanné part vers la PAGE DÉDIÉE NFC */
+    if (nfcMode) { nfcMode = false; try { openNfcPage(value); } catch (eNfc) {} return; }
     /* un « ? » dans la saisie = chiffre illisible → retrouvé par la clé de contrôle */
     var cw = completeWildcard(value);
     if (cw) { value = cw.value; pendingNote = cw.note; }
@@ -3065,6 +3070,115 @@
   });
 
   /* ================= ÉVÉNEMENTS ================= */
+  /* ================= V11 : PAGE DÉDIÉE NFC (autocollant QR code / NFC) =================
+     Réparation d'un autocollant NFC : on scanne le QR code imprimé sur
+     l'autocollant, l'image du QR est RECRÉÉE proprement sur une page séparée,
+     puis on peut lire la puce NFC avec le téléphone (Chrome sur Android).
+     Lecture simple des étiquettes NFC standard (NDEF) que vous possédez —
+     aucun clonage de puces sécurisées (cartes bancaires, badges, titres de
+     transport) : ni possible, ni autorisé. */
+  var nfcMode = false, nfcPage = null, nfcVal = '';
+  var nfcBtn = document.getElementById('nfcBtn');
+  if (nfcBtn) nfcBtn.addEventListener('click', function () {
+    nfcMode = true;
+    statusEl.className = 'hint';
+    statusEl.textContent = '📡 Mode NFC : visez le QR code imprimé sur l\u2019autocollant NFC — son image sera recréée sur la page dédiée. (Fonctionne aussi avec « Scanner depuis une photo ».)';
+    startScan();
+  });
+  function nfcEsc(x) { return String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function nfcExtractText(records) {
+    var parts = [];
+    try {
+      for (var i = 0; i < records.length; i++) {
+        var r = records[i], txt = '';
+        try {
+          if (r.recordType === 'text') txt = new TextDecoder(r.encoding || 'utf-8').decode(r.data);
+          else txt = new TextDecoder('utf-8', { fatal: false }).decode(r.data);
+        } catch (eD) { txt = ''; }
+        if (txt) parts.push(String(txt));
+      }
+    } catch (eR) {}
+    return parts.join('\n');
+  }
+  function nfcCompare(qrVal, nfcText) {
+    if (!nfcText || !String(nfcText).trim()) return 'vide';
+    var a = String(qrVal || '').trim(), b = String(nfcText).trim();
+    if (a === b) return 'ok';
+    if (b.indexOf(a) !== -1 || a.indexOf(b) !== -1) return 'ok';
+    return 'ecart';
+  }
+  function openNfcPage(value) {
+    nfcVal = String(value || '');
+    if (nfcPage) { nfcPage.remove(); nfcPage = null; }
+    var ov = document.createElement('div');
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:99998;background:#0a0817;color:#eee;overflow:auto;padding:18px');
+    var card = document.createElement('div');
+    card.setAttribute('style', 'max-width:640px;margin:0 auto;background:rgba(255,255,255,.06);border:1px solid rgba(167,139,250,.3);border-radius:18px;padding:16px;font:15px/1.5 system-ui,sans-serif');
+    card.innerHTML =
+      '<div style="font-weight:800;font-size:18px;margin-bottom:4px">📡 Page dédiée NFC — autocollant QR code / NFC</div>' +
+      '<div style="font-size:13px;opacity:.8;margin-bottom:10px">Le QR code scanné est recréé proprement ci-dessous. Touchez « Scanner la puce NFC » pour vérifier que la puce contient les mêmes données, ou pour récupérer les données d\u2019une puce quand le QR est abîmé. Lecture simple des étiquettes NFC standard (NDEF) que vous possédez — pas de clonage de puces sécurisées (cartes bancaires, badges, titres de transport) : ni possible, ni autorisé.</div>' +
+      '<div style="font-weight:700;margin:8px 0 2px">Contenu du QR code scanné :</div>' +
+      '<div style="background:rgba(0,0,0,.35);border-radius:10px;padding:8px 10px;word-break:break-all">' + nfcEsc(nfcVal) + '</div>';
+    var qrBox = document.createElement('div');
+    qrBox.setAttribute('style', 'text-align:center;background:#fff;border-radius:14px;padding:14px;margin:12px auto;max-width:320px');
+    try { qrBox.innerHTML = BuiltinQR.svg(nfcVal, 10, 4); } catch (eQ) { qrBox.textContent = 'QR : ' + nfcVal; }
+    card.appendChild(qrBox);
+    var hasNfc = 'NDEFReader' in window;
+    var readBtn = document.createElement('button');
+    readBtn.textContent = '📡 Scanner la puce NFC maintenant';
+    readBtn.setAttribute('style', 'display:block;width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#06b6d4,#7c3aed,#db2777);color:#fff;font-size:15px;font-weight:700;margin:6px 0');
+    readBtn.disabled = !hasNfc;
+    readBtn.addEventListener('click', function () { nfcRead(nfcMsg); });
+    card.appendChild(readBtn);
+    var nfcMsg = document.createElement('div');
+    nfcMsg.setAttribute('style', 'font-size:14px;margin:8px 0;word-break:break-word');
+    if (!hasNfc) nfcMsg.innerHTML = '<span style="color:#fbbf24">⚠️ Le NFC n\u2019est pas disponible sur ce navigateur : la lecture de puce marche avec Chrome sur Android (pas sur iPhone/Safari ni Firefox). L\u2019image du QR code recréée ci-dessus reste utilisable pour réparer l\u2019autocollant.</span>';
+    else nfcMsg.innerHTML = '<span style="opacity:.8">Appuyez sur le bouton, puis approchez le téléphone de la puce NFC de l\u2019autocollant (l\u00e9cran allum\u00e9, téléphone d\u00e9brid\u00e9 de sa coque si besoin).</span>';
+    card.appendChild(nfcMsg);
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕ Fermer la page NFC';
+    closeBtn.setAttribute('style', 'display:block;width:100%;padding:10px;border:1px solid rgba(167,139,250,.4);border-radius:12px;background:none;color:#ddd;font-size:14px;margin-top:10px');
+    closeBtn.addEventListener('click', function () { ov.remove(); nfcPage = null; nfcMode = false; });
+    card.appendChild(closeBtn);
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+    nfcPage = ov;
+  }
+  function nfcRead(msgEl) {
+    if (!('NDEFReader' in window)) {
+      msgEl.innerHTML = '<span style="color:#fbbf24">⚠️ NFC indisponible sur ce navigateur — essayez avec Chrome sur Android.</span>';
+      return;
+    }
+    msgEl.innerHTML = '<span style="opacity:.8">⏳ NFC activé — approchez la puce…</span>';
+    try {
+      var ndef = new window.NDEFReader();
+      var done = false;
+      ndef.addEventListener('reading', function (ev) {
+        if (done) return; done = true;
+        var txt = nfcExtractText(ev && ev.message && ev.message.records ? ev.message.records : []);
+        var cmp = nfcCompare(nfcVal, txt);
+        var sn = ev && ev.serialNumber ? ' (n° de série ' + nfcEsc(ev.serialNumber) + ')' : '';
+        if (cmp === 'ok') {
+          msgEl.innerHTML = '✅ LU : la puce NFC contient bien les MÊMES données que le QR code' + sn + ' — l\u2019autocollant fonctionne correctement. Contenu : <b>' + nfcEsc(txt.trim()) + '</b>';
+        } else if (cmp === 'vide') {
+          msgEl.innerHTML = 'ℹ️ Puce détectée mais sans données lisibles' + sn + ' (étiquette vierge ou non-NDEF). Le QR code recréé ci-dessus sert de sauvegarde.';
+        } else {
+          msgEl.innerHTML = '⚠️ La puce contient des données DIFFÉRENTES du QR code' + sn + ' :<br/><b>' + nfcEsc(txt.trim()) + '</b><br/>Le QR code recréé plus haut correspond au code scanné — vérifiez l\u2019autocollant.';
+        }
+      });
+      ndef.addEventListener('readingerror', function () {
+        if (!done) msgEl.innerHTML = '<span style="color:#fbbf24">⚠️ Puce illisible ici — rapprochez le téléphone de la puce, gardez l\u2019écran allumé, ou retirez la coque du téléphone.</span>';
+      });
+      ndef.scan().catch(function (e) {
+        var n = (e && e.name) || '';
+        if (n === 'NotAllowedError') msgEl.innerHTML = '<span style="color:#fbbf24">🔒 Autorisation NFC refusée — autorisez le NFC pour ce site dans le navigateur (Chrome), puis réessayez.</span>';
+        else msgEl.innerHTML = '<span style="color:#fbbf24">⚠️ Impossible d\u2019activer le NFC : ' + nfcEsc(e && e.message ? e.message : e) + ' — vérifiez que le NFC est activé dans les réglages du téléphone.</span>';
+      });
+    } catch (eN) {
+      msgEl.innerHTML = '<span style="color:#fbbf24">⚠️ NFC indisponible : ' + nfcEsc(eN && eN.message ? eN.message : eN) + '</span>';
+    }
+  }
+
   startBtn.addEventListener('click', startScan);
   photoBtn.addEventListener('click', function () { photoInput.value = ''; photoInput.click(); });
   photoInput.addEventListener('change', function () {
@@ -3234,7 +3348,12 @@
   tabQr.addEventListener('click', function () { mode = 'qr'; tabQr.classList.add('active'); tabBc.classList.remove('active'); tabDm.classList.remove('active'); renderOutput(); saveState(); });
   tabBc.addEventListener('click', function () { mode = 'bc'; tabBc.classList.add('active'); tabQr.classList.remove('active'); tabDm.classList.remove('active'); renderOutput(); saveState(); });
   tabDm.addEventListener('click', function () { mode = 'dm'; tabDm.classList.add('active'); tabQr.classList.remove('active'); tabBc.classList.remove('active'); renderOutput(); saveState(); });
-  bcFormat.addEventListener('change', function () { mode = 'bc'; tabBc.classList.add('active'); tabQr.classList.remove('active'); tabDm.classList.remove('active'); renderOutput(); saveState(); });
+  bcFormat.addEventListener('change', function () {
+    /* V11 : les entrées QR Code / DataMatrix du menu basculent sur le bon onglet */
+    if (bcFormat.value === '__QR') { mode = 'qr'; tabQr.classList.add('active'); tabBc.classList.remove('active'); tabDm.classList.remove('active'); renderOutput(); saveState(); return; }
+    if (bcFormat.value === '__DM') { mode = 'dm'; tabDm.classList.add('active'); tabQr.classList.remove('active'); tabBc.classList.remove('active'); renderOutput(); saveState(); return; }
+    mode = 'bc'; tabBc.classList.add('active'); tabQr.classList.remove('active'); tabDm.classList.remove('active'); renderOutput(); saveState();
+  });
   applyBtn.addEventListener('click', function () {
     var v = editVal.value.trim();
     if (!v) return;
