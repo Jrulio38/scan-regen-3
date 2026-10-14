@@ -1193,23 +1193,21 @@
     var lab = level === 'low' ? 'faible ✓' : (level === 'moderate' ? 'modérée' : 'élevée ⚠');
     return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;color:#fff;background:' + col + ';font-size:12px;margin:2px 4px 2px 0">' + prodEsc(label) + ' : ' + lab + '</span>';
   }
+  /* V10 : plus de fenêtre flottante — la fiche s'affiche dans la CASE DÉDIÉE
+     « Caractéristiques du produit » sous le résultat, remplie automatiquement
+     dès qu'un produit est reconnu (produit alimentaire, livre, envoi La Poste). */
+  var prodBox = null;
   function prodShowModal(inner) {
-    if (prodModal) prodModal.remove();
-    var ov = document.createElement('div');
-    ov.setAttribute('style', 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px');
-    var card = document.createElement('div');
-    card.setAttribute('style', 'position:relative;background:#fff;color:#222;width:100%;max-width:540px;max-height:88vh;overflow:auto;border-radius:16px;padding:18px 18px 16px;font:14px/1.45 system-ui,sans-serif');
-    card.innerHTML = inner;
-    var btn = document.createElement('button');
-    btn.textContent = '✕ Fermer';
-    btn.setAttribute('style', 'display:block;margin:14px auto 0;padding:10px 22px;border:0;border-radius:12px;background:#333;color:#fff;font-size:15px');
-    btn.addEventListener('click', function () { ov.remove(); });
-    card.appendChild(btn);
-    ov.appendChild(card);
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
-    document.body.appendChild(ov);
-    prodModal = ov;
+    if (!prodBox) {
+      prodBox = document.createElement('div');
+      prodBox.setAttribute('style', 'display:none;margin:10px 0');
+      prodBtn.parentNode.insertBefore(prodBox, prodBtn.nextSibling);
+    }
+    prodBox.innerHTML = '<div class="hint" style="margin:0 0 6px">🧾 Caractéristiques du produit (remplies automatiquement dès que le produit est reconnu) :</div>'
+      + '<div style="background:rgba(255,255,255,.97);color:#222;border-radius:14px;padding:14px 14px 12px;font:14px/1.45 system-ui,sans-serif">' + inner + '</div>';
+    prodBox.style.display = '';
   }
+  function prodHide() { if (prodBox) { prodBox.style.display = 'none'; prodBox.innerHTML = ''; } }
   function prodNutriWhy(p) {
     try {
       var nl = p.nutrient_levels || {}, nm = p.nutriments || {};
@@ -1268,22 +1266,22 @@
   function openProductInfo(gt) {
     if (!gt) return;
     if (!navigator.onLine) {
-      prodShowModal('<h3 style="margin:4px 0">🧾 Composition / type de produit</h3><p>📴 Pas d’Internet : la recherche de la fiche produit a besoin de la connexion. Tout le reste de l’application fonctionne hors-ligne.</p>');
+      prodShowModal('<p>📴 Pas d’Internet : la recherche de la fiche produit a besoin de la connexion. Tout le reste de l’application fonctionne hors-ligne.</p>');
       return;
     }
-    prodShowModal('<h3 style="margin:4px 0">🧾 Composition / type de produit</h3><p>⏳ Recherche de la fiche du produit ' + prodEsc(gt) + ' sur la base libre Open Food Facts…</p>');
+    prodShowModal('<p>⏳ Recherche de la fiche du produit ' + prodEsc(gt) + ' sur la base libre Open Food Facts…</p>');
     fetch('https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(gt) + '.json?fields=code,product_name,brands,quantity,image_front_url_small,ingredients_text_fr,ingredients_text,allergens,nutriscore_grade,nutriscore_score,nutrient_levels,nutriments,additives_n,nova_group')
       .then(function (r) { return r.json(); })
       .then(function (j) {
         var p = j && j.product;
         if (!p || j.status === 0 || (!p.product_name && !p.brands && !p.ingredients_text && !p.nutriscore_grade)) {
-          prodShowModal('<h3 style="margin:4px 0">🧾 Composition / type de produit</h3><p>❌ Caractéristiques et composition non trouvées pour ce produit.</p><p>Ce produit (' + prodEsc(gt) + ') n’est pas encore dans la base libre Open Food Facts (plus de 3 millions de produits alimentaires).</p><p>Les produits récents ou de petites marques manquent parfois : ils ne sont ajoutés que par des contributeurs bénévoles (applications gratuites Open Food Facts ou Yuka).</p><p><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">La page du produit sur openfoodfacts.org</a></p>');
+          prodShowModal('<p>❌ Caractéristiques et composition non trouvées pour ce produit.</p><p>Ce produit (' + prodEsc(gt) + ') n’est pas encore dans la base libre Open Food Facts (plus de 3 millions de produits alimentaires).</p><p>Les produits récents ou de petites marques manquent parfois : ils ne sont ajoutés que par des contributeurs bénévoles (applications gratuites Open Food Facts ou Yuka).</p><p><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">La page du produit sur openfoodfacts.org</a></p>');
           return;
         }
         prodShowModal(prodHtml(p, gt));
       })
       .catch(function (e) {
-        prodShowModal('<h3 style="margin:4px 0">🧾 Composition / type de produit</h3><p>❌ Recherche impossible : ' + prodEsc(e && e.message ? e.message : e) + '. Vérifiez la connexion Internet, puis réessayez.</p>');
+        prodShowModal('<p>❌ Recherche impossible : ' + prodEsc(e && e.message ? e.message : e) + '. Vérifiez la connexion Internet, puis réessayez.</p>');
       });
   }
   /* V32 : caractéristiques d'un produit La Poste (type d'envoi, n° SD, suivi) —
@@ -1291,7 +1289,7 @@
      de suivi ne s'ouvre que si vous le choisissez. */
   function openPosteInfo(value) {
     var v = String(value || '');
-    var h = '<h3 style="margin:4px 0">' + '🧾 Composition / type de produit' + '</h3>';
+    var h = '';
     var p = null; try { p = sdParse(v); } catch (eP) { p = null; }
     if (p) {
       h += '<p style="margin:8px 0 2px"><b>Produit :</b> ' + prodEsc(sdProduct(p.id)) + '</p>';
@@ -1314,6 +1312,64 @@
     var trackNo = p ? p.id : v.replace(/\s+/g, '');
     h += '<p style="margin:10px 0 0"><a href="https://www.laposte.fr/outils/suivre-vos-envois?code=' + encodeURIComponent(trackNo) + '" target="_blank" rel="noopener" style="color:#1565c0">Suivre cet envoi sur le site de La Poste (s’ouvre seulement si vous touchez le lien)</a></p>';
     prodShowModal(h);
+  }
+  /* ================= V10 : LIVRES (ISBN 978/979) =================
+     Un EAN-13 commençant par 978 ou 979 est un livre. La fiche (titre, auteur,
+     éditeur, pages, description, couverture) est cherchée dans la base libre
+     Google Books puis, si absent, dans Open Library. Nécessite Internet,
+     uniquement pour cette case — le reste de l'appli reste hors-ligne. */
+  function prodIsBook(gt) { return /^97[89]\d{10}$/.test(String(gt || '')); }
+  function bookLang(code) { return ({ fr: 'français', en: 'anglais', de: 'allemand', es: 'espagnol', it: 'italien', nl: 'néerlandais' })[code] || code; }
+  function bookHtmlG(vi, gt) {
+    var h = '<h3 style="margin:4px 0 2px;font-size:17px">📖 ' + prodEsc(vi.title || 'Livre') + '</h3>';
+    if (vi.subtitle) h += '<div style="color:#666;margin-bottom:4px">' + prodEsc(vi.subtitle) + '</div>';
+    if (vi.authors && vi.authors.length) h += '<p style="margin:4px 0"><b>Auteur(s) :</b> ' + prodEsc(vi.authors.join(', ')) + '</p>';
+    var pub = (vi.publisher || '') + (vi.publishedDate ? ' (' + vi.publishedDate + ')' : '');
+    if (pub.trim()) h += '<p style="margin:2px 0"><b>Éditeur :</b> ' + prodEsc(pub) + '</p>';
+    if (vi.pageCount) h += '<p style="margin:2px 0"><b>Pages :</b> ' + prodEsc(vi.pageCount) + '</p>';
+    if (vi.language) h += '<p style="margin:2px 0"><b>Langue :</b> ' + prodEsc(bookLang(vi.language)) + '</p>';
+    var th = vi.imageLinks && (vi.imageLinks.thumbnail || vi.imageLinks.smallThumbnail);
+    if (th) h += '<img src="' + prodEsc(String(th).replace('http://', 'https://')) + '" alt="" style="max-height:120px;border-radius:10px;margin:8px 0"/>';
+    if (vi.description) { var d = String(vi.description); if (d.length > 600) d = d.slice(0, 600) + '…'; h += '<p style="margin:6px 0 0"><b>Description :</b> ' + prodEsc(d) + '</p>'; }
+    h += '<div style="color:#999;font-size:12px;margin:6px 0">ISBN ' + prodEsc(gt) + ' — base Google Books</div>';
+    if (vi.infoLink) h += '<p style="margin:8px 0 0"><a href="' + prodEsc(vi.infoLink) + '" target="_blank" rel="noopener" style="color:#1565c0">Voir la fiche complète du livre (s’ouvre seulement si vous touchez le lien)</a></p>';
+    return h;
+  }
+  function bookHtmlOL(b, gt) {
+    var h = '<h3 style="margin:4px 0 2px;font-size:17px">📖 ' + prodEsc(b.title || 'Livre') + '</h3>';
+    if (b.authors && b.authors.length) h += '<p style="margin:4px 0"><b>Auteur(s) :</b> ' + prodEsc(b.authors.map(function (a) { return a.name; }).join(', ')) + '</p>';
+    if (b.publishers && b.publishers.length) h += '<p style="margin:2px 0"><b>Éditeur :</b> ' + prodEsc(b.publishers.map(function (p) { return p.name; }).join(', ')) + '</p>';
+    if (b.number_of_pages) h += '<p style="margin:2px 0"><b>Pages :</b> ' + prodEsc(b.number_of_pages) + '</p>';
+    if (b.cover && (b.cover.small || b.cover.medium)) h += '<img src="' + prodEsc(b.cover.medium || b.cover.small) + '" alt="" style="max-height:120px;border-radius:10px;margin:8px 0"/>';
+    h += '<div style="color:#999;font-size:12px;margin:6px 0">ISBN ' + prodEsc(gt) + ' — base Open Library</div>';
+    h += '<p style="margin:8px 0 0"><a href="https://openlibrary.org/isbn/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">Voir la fiche complète du livre (s’ouvre seulement si vous touchez le lien)</a></p>';
+    return h;
+  }
+  function openBookInfo(gt) {
+    if (!gt) return;
+    if (!navigator.onLine) {
+      prodShowModal('<p style="margin:4px 0">📖 Livre reconnu (ISBN ' + prodEsc(gt) + ').</p><p>📴 Pas d’Internet : la recherche du livre a besoin de la connexion. Tout le reste de l’application fonctionne hors-ligne.</p>');
+      return;
+    }
+    prodShowModal('<p style="margin:4px 0">⏳ Recherche du livre ISBN ' + prodEsc(gt) + '…</p>');
+    fetch('https://www.googleapis.com/books/v1/volumes?q=isbn:' + encodeURIComponent(gt) + '&country=FR')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var it = j && j.items && j.items.length ? j.items[0] : null;
+        if (it && it.volumeInfo && (it.volumeInfo.title || it.volumeInfo.authors)) {
+          prodShowModal(bookHtmlG(it.volumeInfo, gt)); return null;
+        }
+        return fetch('https://openlibrary.org/api/books?bibkeys=ISBN:' + encodeURIComponent(gt) + '&jscmd=data&format=json')
+          .then(function (r2) { return r2.json(); })
+          .then(function (j2) {
+            var b = j2 ? j2['ISBN:' + gt] : null;
+            if (b && (b.title || b.authors)) prodShowModal(bookHtmlOL(b, gt));
+            else prodShowModal('<p style="margin:4px 0">❌ Caractéristiques et composition non trouvées pour ce produit.</p><p>Ce livre (ISBN ' + prodEsc(gt) + ') n’a pas été trouvé dans les bases de livres Google Books et Open Library.</p>');
+          });
+      })
+      .catch(function (e) {
+        prodShowModal('<p style="margin:4px 0">❌ Recherche impossible : ' + prodEsc(e && e.message ? e.message : e) + '. Vérifiez la connexion Internet, puis réessayez avec la touche « 🧾 Composition / type de produit ».</p>');
+      });
   }
   var prodBtn = document.createElement('button');
   prodBtn.textContent = '🧾 Composition / type de produit';
@@ -1341,6 +1397,13 @@
     prodBtn.setAttribute('data-val', String(value || ''));
     if (g) prodBtn.setAttribute('data-gtin', g); else prodBtn.removeAttribute('data-gtin');
     prodBtn.style.display = (g || poste) ? '' : 'none';
+    /* V10 : remplissage AUTOMATIQUE de la case « Caractéristiques du produit »
+       dès qu'un produit est reconnu : livre (ISBN 978/979) → bases de livres ;
+       autre code produit → Open Food Facts ; envoi La Poste → fiche locale. */
+    if (g && prodIsBook(g)) { try { openBookInfo(g); } catch (eBk) {} return; }
+    if (g) { try { openProductInfo(g); } catch (eFd) {} return; }
+    if (poste) { try { openPosteInfo(String(value || '')); } catch (ePo) {} return; }
+    prodHide();
   }
 
   /* ================= COULEURS DU CODE (nuances de noir, tampons, feutres) ================= */
