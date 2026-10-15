@@ -1807,8 +1807,120 @@
     return null;
   }
 
+  /* ================= V15 : STABILISATEUR D'IMAGE =================
+     Quand la main tremble ou bouge, la lecture est lente parce que la caméra
+     décode beaucoup d'images floues. Le stabilisateur :
+     - mesure en continu la netteté (détail fin de l'image) et le tremblement ;
+     - mémorise la ZONE où le code a été repéré : la boucle ZXing analyse
+       directement ce petit carré (au lieu de toute l'image) → beaucoup plus vite ;
+     - garde en réserve l'image la plus NETTE des dernières secondes : si la
+       frame du moment est trop bougée, on redécode la meilleure image gardée ;
+     - accélère la cadence quand l'image est nette, la ralentit quand elle est
+     trop floue (économie de batterie) ;
+     - affiche « Code repéré, ne bougez plus » dès que le code est vu une fois. */
+  var stabCv = document.createElement('canvas'); stabCv.width = 96; stabCv.height = 72;
+  var stabCtx = stabCv.getContext('2d', { willReadFrequently: true });
+  var stabPrev = null, stabLast = { sharp: 1, motion: 0 };
+  var stabZone = null; /* {x,y,w,h} en fraction d'image : dernière zone où un code a été vu */
+  var stabBest = null, stabBestScore = -1, stabBestAt = 0; /* meilleure image nette gardée en réserve */
+  var stabHintAt = 0;
+
+  function stabMeasure() { /* netteté + tremblement de l'image actuelle (0 à 1) */
+    try {
+      stabCtx.drawImage(video, 0, 0, 96, 72);
+      var d = stabCtx.getImageData(0, 0, 96, 72).data;
+      var g = new Array(d.length / 4), i;
+      for (i = 0; i < d.length; i += 4) g[i / 4] = (d[i] * 3 + d[i + 1] * 6 + d[i + 2]) / 10;
+      var lap = [], s = 0, x, y, n = 0;
+      for (y = 1; y < 71; y++) for (x = 1; x < 95; x++) {
+        var l = Math.abs(4 * g[y * 96 + x] - g[y * 96 + x - 1] - g[y * 96 + x + 1] - g[(y - 1) * 96 + x] - g[(y + 1) * 96 + x]);
+        lap.push(l); s += l; n++;
+      }
+      var mean = s / n, vr = 0;
+      for (i = 0; i < n; i++) { var dv = lap[i] - mean; vr += dv * dv; }
+      vr /= n;
+      var sharp = Math.min(1, vr / 120);
+      var motion = 0;
+      if (stabPrev && stabPrev.length === g.length) {
+        var ds = 0;
+        for (i = 0; i < g.length; i++) ds += Math.abs(g[i] - stabPrev[i]);
+        motion = Math.min(1, (ds / g.length) / 40);
+      }
+      stabPrev = g;
+      stabLast = { sharp: sharp, motion: motion };
+      return stabLast;
+    } catch (e) { return stabLast; }
+  }
+  function stabZoneFrom(codeObj) { /* mémorise le carré du code vu par la caméra (cornerPoints) */
+    try {
+      var pts = codeObj && codeObj.cornerPoints;
+      if (!pts || pts.length < 4) return;
+      var xs = [], ys = [], i;
+      for (i = 0; i < pts.length; i++) { xs.push(pts[i].x); ys.push(pts[i].y); }
+      var w = video.videoWidth || 1, h = video.videoHeight || 1;
+      var x0 = Math.min.apply(null, xs) / w, x1 = Math.max.apply(null, xs) / w;
+      var y0 = Math.min.apply(null, ys) / h, y1 = Math.max.apply(null, ys) / h;
+      if (x1 - x0 < 0.01 || y1 - y0 < 0.01) return;
+      stabZone = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    } catch (e) {}
+  }
+  function zxDecodeZone(el, zone) { /* décode UNIQUEMENT la zone du code (mémorisée) → très rapide */
+    if (!window.ZXing || !getReader() || !zone) return null;
+    var w = el.videoWidth || el.naturalWidth || el.width;
+    var h = el.videoHeight || el.naturalHeight || el.height;
+    if (!w || !h) return null;
+    var pad = 0.8; /* on garde une marge autour du code */
+    var x0 = Math.max(0, Math.min(1, zone.x - zone.w * pad));
+    var y0 = Math.max(0, Math.min(1, zone.y - zone.h * pad));
+    var zw = Math.min(1 - x0, zone.w * (1 + 2 * pad));
+    var zh = Math.min(1 - y0, zone.h * (1 + 2 * pad));
+    if (zw < 0.02 || zh < 0.02) return null;
+    var px = Math.round(x0 * w), py = Math.round(y0 * h);
+    var pw = Math.max(8, Math.round(zw * w)), ph = Math.max(8, Math.round(zh * h));
+    var sc = Math.min(4, 1000 / Math.max(pw, ph));
+    var c = getZxCanvas2();
+    c.width = Math.max(1, Math.round(pw * sc)); c.height = Math.max(1, Math.round(ph * sc));
+    var ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(el, px, py, pw, ph, 0, 0, c.width, c.height);
+    var ls = new ZXing.HTMLCanvasElementLuminanceSource(c);
+    try { return zxDecodeLs(ls); } catch (e1) {}
+    try { return zxDecodeLs(ls.rotateCounterClockwise()); } catch (e2) {}
+    return null;
+  }
+  function stabKeepBest(sharp) { /* garde l'image la plus nette des dernières secondes en réserve */
+    var now = Date.now();
+    if (stabBest && sharp <= stabBestScore + 0.04 && now - stabBestAt < 2500) return;
+    try {
+      var w = video.videoWidth || 1, h = video.videoHeight || 1;
+      var sc = Math.min(1, 900 / Math.max(w, h));
+      if (!stabBest) stabBest = document.createElement('canvas');
+      stabBest.width = Math.max(1, Math.round(w * sc));
+      stabBest.height = Math.max(1, Math.round(h * sc));
+      stabBest.getContext('2d').drawImage(video, 0, 0, stabBest.width, stabBest.height);
+      stabBestScore = sharp; stabBestAt = now;
+    } catch (e) {}
+  }
+  function stabSeenHint() { /* guide à l'écran : code vu, on demande de ne plus bouger */
+    if (!running) return;
+    var now = Date.now();
+    if (now - stabHintAt < 600) return;
+    stabHintAt = now;
+    statusEl.className = 'hint';
+    statusEl.textContent = '🎯 Code repéré — ne bougez plus, lecture en cours…';
+  }
+  function stabBlurHint() {
+    if (!running) return;
+    var now = Date.now();
+    if (now - stabHintAt < 600) return;
+    stabHintAt = now;
+    statusEl.className = 'hint';
+    statusEl.textContent = '🖐️ Image floue ou instable — rapprochez le code et tenez l\u2019appareil stable.';
+  }
+
   function stopScan() {
     running = false;
+    stabZone = null; stabPrev = null; stabBest = null; stabBestScore = -1; /* V15 : remise à zéro du stabilisateur */
     if (rafId) cancelAnimationFrame(rafId);
     if (zxLoopId) { clearTimeout(zxLoopId); zxLoopId = null; }
     updateFlashUI();
@@ -1958,7 +2070,7 @@
       running = true;
       startBtn.textContent = '⏸ Arrêter la caméra';
       statusEl.className = 'hint';
-      statusEl.textContent = 'Visez le code-barres, la détection est automatique.';
+      statusEl.textContent = 'Visez le code-barres — stabilisateur d\u2019image actif (gardez l\u2019appareil calme 1 seconde).';
       autoFocusZoom(); /* mise au point + zoom automatiques dès l'ouverture */
       /* ===== FLASH : détection du support lampe + remise dans l'état mémorisé ===== */
       try {
@@ -2053,7 +2165,9 @@
           var chkCi = mappedCi ? checkValue(codes[ci].rawValue, mappedCi) : null;
           if (chkCi && chkCi.ok) { pick = codes[ci]; break; }
         }
+        stabZoneFrom(pick); /* V15 : mémorise la zone du code pour la boucle ZXing */
         onDetected(pick.rawValue, '' + pick.format);
+        if (running) stabSeenHint(); /* V15 : guide « ne bougez plus » dès le 1er aperçu */
       }
       rafId = requestAnimationFrame(tick);
     }).catch(function () { rafId = requestAnimationFrame(tick); });
@@ -2065,13 +2179,28 @@
   var zxTickCount = 0;
   function zxTick() {
     if (!running) return;
+    var sharp = 1;
     try {
+      var m = stabMeasure(); /* V15 stabilisateur : netteté de la frame actuelle */
+      sharp = m.sharp;
       var aggressive = (zxTickCount % 8 === 7);
-      var r = zxDecodeElement(video, aggressive);
+      var r = null;
+      /* 1) si le code a déjà été repéré : on décode juste sa zone → ultra rapide */
+      if (stabZone) { try { r = zxDecodeZone(video, stabZone); } catch (eZ) {} }
+      /* 2) frame nette : décodage complet (agressif parfois) */
+      if (!r && sharp > 0.10) { stabKeepBest(sharp); r = zxDecodeElement(video, aggressive); }
+      /* 3) frame bougée : on redécode la MEILLEURE image gardée en réserve */
+      if (!r && stabBest && (zxTickCount % 4 === 3)) { try { r = zxDecodeElement(stabBest, false); } catch (eB) {} }
       if (r) onDetected(r.text, r.format);
+      else if (stabZone || candPool.length) stabSeenHint();
+      else if (sharp < 0.05) stabBlurHint();
     } catch (e) {}
     zxTickCount++;
-    zxLoopId = setTimeout(zxTick, 250);
+    /* V15 : cadence intelligente — net : rapide (130 ms) / flou : on respire (320 ms) */
+    var delay = 250;
+    if (sharp < 0.05) delay = 320;
+    else if (sharp > 0.25) delay = 130;
+    zxLoopId = setTimeout(zxTick, delay);
   }
 
   /* ===== CLÉ DE CONTRÔLE : VÉRIFIER, COMPLÉTER ET COMBLER LE MANQUE =====
@@ -2177,6 +2306,7 @@
        si la chaîne ressemble à une Smart Data on va lire le n° imprimé à côté */
     if (!p && !/8[0-9A-Z][0-9]{12}/.test(String(value))) return;
     if (!ocrAvailable()) return;
+    if (running && stabMeasure().sharp < 0.06) return; /* V15 : OCR lourd uniquement sur image nette */
     sdCheckBusy = true; sdCheckDone = value;
     statusEl.className = 'hint';
     statusEl.textContent = '🔎 Vérification du n° SD imprimé à côté du code…';
