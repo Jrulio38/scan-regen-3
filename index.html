@@ -107,15 +107,16 @@
       <button id="startBtn">▶︎ Démarrer la caméra</button>
     </div>
     <div class="switchRow">
-      <span class="swLbl" id="lblPhoto"> Photo unique</span>
+      <span class="swLbl" id="lblPhoto">📷 Photo unique</span>
       <label class="switch"><input type="checkbox" id="modeSwitch" checked /><span class="slider"></span></label>
       <span class="swLbl" id="lblVollee">⚡ Scan à la volée</span>
     </div>
-    <button class="sec flashBtn auto" id="flashBtn" style="display:none;margin-top:10px"> Flash : auto</button>
+    <button class="sec flashBtn auto" id="flashBtn" style="display:none;margin-top:10px">⚡ Flash : auto</button>
     <div id="flashHint" class="hint" style="display:none"></div>
-    <button class="sec" id="photoBtn">️ Scanner depuis une photo</button>
+    <button class="sec" id="photoBtn">📸 Scanner depuis une photo</button>
     <button class="sec" id="nfcBtn">📡 Autocollant NFC — scanner son QR code (page dédiée)</button>
-    <div class="hint" style="margin-top:10px;margin-bottom:0"> Type de code à lire (facultatif — améliore la reconnaissance) :</div>
+    <button class="sec" id="tagBtn">🏷 Puce NFC → étiquette QR/DataMatrix à imprimer (relevé)</button>
+    <div class="hint" style="margin-top:10px;margin-bottom:0">🔍 Type de code à lire (facultatif — améliore la reconnaissance) :</div>
     <select id="scanFormat">
       <option value="auto">Tous les types (détection automatique)</option>
       <option value="QR_CODE">QR Code</option>
@@ -127,7 +128,7 @@
       <option value="ITF">Code-barres ITF (ITF-14, 2/5)</option>
       <option value="DATA_MATRIX">DataMatrix</option>
     </select>
-    <button class="sec" id="ocrBtn" style="display:none"> Lire le numéro écrit à côté du code</button>
+    <button class="sec" id="ocrBtn" style="display:none">🔍 Lire le numéro écrit à côté du code</button>
     <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none" />
     <canvas id="zxCanvas" style="display:none"></canvas>
     <div id="scanStatus" class="hint">Visez le code-barres, la détection est automatique.</div>
@@ -194,16 +195,16 @@
     <div class="hint" id="verifyNote" style="display:none"></div>
     <div id="linkInfo" style="display:none;margin:8px 0;font-size:.95rem"></div>
     <button id="fullBtn">⤢ Afficher en plein écran</button>
-    <button class="sec" id="pngBtn"> Télécharger en image (PNG)</button>
-    <button class="sec" id="printBtn">️ Imprimer / PDF</button>
-    <button class="sec" id="clearBtn">️ Effacer ce code et le texte</button>
+    <button class="sec" id="pngBtn">💾 Télécharger en image (PNG)</button>
+    <button class="sec" id="printBtn">🖨️ Imprimer / PDF</button>
+    <button class="sec" id="clearBtn">🗑️ Effacer ce code et le texte</button>
   </div>
 
   <div class="card">
-    <div style="font-weight:700;margin-bottom:6px"> Derniers codes</div>
+    <div style="font-weight:700;margin-bottom:6px">🕘 Derniers codes</div>
     <ul id="history"></ul>
     <div class="hint" id="emptyHist">Aucun code pour l'instant.</div>
-    <div class="hint" style="margin-top:8px"> Confidentialité : vos codes restent enregistrés uniquement sur cet appareil — jamais envoyés sur Internet — pour ne rien perdre en cas de fermeture accidentelle. « Tout effacer » supprime tout immédiatement.</div>
+    <div class="hint" style="margin-top:8px">🔒 Confidentialité : vos codes restent enregistrés uniquement sur cet appareil — jamais envoyés sur Internet — pour ne rien perdre en cas de fermeture accidentelle. « Tout effacer » supprime tout immédiatement.</div>
     <button class="sec" id="wipeBtn" style="margin-top:8px">粒 Tout effacer</button>
   </div>
 
@@ -260,6 +261,8 @@
 
   var stream = null, rafId = null, detector = null, running = false;
   var mode = 'qr', lastResult = null, lastVal = null, cooldown = 0; /* mode : 'qr' | 'bc' | 'dm' */
+  var lastFmt = null; /* V12 : type du dernier code reconnu (pour restaurer le BON code barre après réouverture) */
+  var restoring = false; /* V12 : vrai pendant la restauration du dernier scan (pas de défilement automatique) */
   var hist = [];
   var modeSwitch = document.getElementById('modeSwitch');
   var lblPhoto = document.getElementById('lblPhoto');
@@ -275,6 +278,7 @@
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
         lastResult: lastResult, mode: mode, bc: bcFormat.value,
+        lastFmt: lastFmt,
         hist: hist.slice(0, 30), scanMode: scanMode, torch: torchMode,
         sf: scanFmt, gf: genFormat.value
       }));
@@ -292,6 +296,7 @@
         if (bcFormat.options[i].value === s.bc) { bcFormat.selectedIndex = i; break; }
       if (s.mode === 'qr' || s.mode === 'bc' || s.mode === 'dm') mode = s.mode;
       if (s.lastResult) lastResult = s.lastResult;
+      if (s.lastFmt) lastFmt = s.lastFmt;
       if (s.sf) { scanFmt = s.sf; scanFormatSel.value = s.sf; }
       if (s.gf) { genFormat.value = s.gf; }
     } catch (e) {}
@@ -919,10 +924,10 @@
       var cd = c.replace(/\D/g, '');
       /* mêmes longueurs, 1 ou 2 chiffres d'écart : le texte imprimé corrige le code mal lu */
       if (cd.length === digits0.length && levD(cd, digits0) >= 1 && levD(cd, digits0) <= 2)
-        return { value: chk.value, note: ' Code incomplet ou mal lu : réparé grâce au texte imprimé à côté (clé de contrôle vérifiée ✓).' };
+        return { value: chk.value, note: '🛠️ Code incomplet ou mal lu : réparé grâce au texte imprimé à côté (clé de contrôle vérifiée ✓).' };
       /* le code lu est un morceau du numéro imprimé (partie manquante comblée) */
       if (cd.length > digits0.length && cd.indexOf(digits0) !== -1 && digits0.length >= 8)
-        return { value: chk.value, note: ' Parties manquantes comblées avec le texte imprimé à côté (clé de contrôle vérifiée ✓).' };
+        return { value: chk.value, note: '🛠️ Parties manquantes comblées avec le texte imprimé à côté (clé de contrôle vérifiée ✓).' };
     }
     return null;
   }
@@ -946,7 +951,7 @@
       else if (dd.length === 14 && dd === t) ok = fmtOk(dd, 'ITF14');
       if (ok) { if (found) return null; found = t; } /* plusieurs solutions → ambigu, on ne devine pas */
     }
-    if (found) return { value: found, note: ' Chiffre manquant retrouvé automatiquement grâce à la clé de contrôle ✓.' };
+    if (found) return { value: found, note: '🛠️ Chiffre manquant retrouvé automatiquement grâce à la clé de contrôle ✓.' };
     return null;
   }
 
@@ -1232,12 +1237,21 @@
       return '<div style="margin:8px 0">' + rows + '</div><p style="margin:6px 0">' + why + '</p>';
     } catch (e) { return ''; }
   }
-  function prodHtml(p, gt) {
+  /* V12 : bases libres interrogées pour retrouver un produit (alimentaire,
+     cosmétique, tous les autres produits) — gratuites, sans compte, CORS OK */
+  var PROD_BASES = [
+    { name: 'Open Food Facts', api: 'https://world.openfoodfacts.org/api/v2/product/', site: 'https://fr.openfoodfacts.org/produit/' },
+    { name: 'Open Beauty Facts', api: 'https://world.openbeautyfacts.org/api/v2/product/', site: 'https://fr.openbeautyfacts.org/produit/' },
+    { name: 'Open Products Facts', api: 'https://world.openproductsfacts.org/api/v2/product/', site: 'https://fr.openproductsfacts.org/produit/' }
+  ];
+  function prodHtml(p, gt, base) {
+    var bName = (base && base.name) ? base.name : 'Open Food Facts';
+    var bSite = (base && base.site) ? base.site : 'https://fr.openfoodfacts.org/produit/';
     var NS = { 'a': '#038141', 'b': '#85BB2F', 'c': '#FECB02', 'd': '#EE8100', 'e': '#E63E08' };
     var grade = (p.nutriscore_grade || '').toLowerCase();
     var h = '<h3 style="margin:4px 0 2px;font-size:17px">🧾 ' + prodEsc(p.product_name || 'Produit') + '</h3>';
     if (p.brands) h += '<div style="color:#666;margin-bottom:6px">' + prodEsc(p.brands) + (p.quantity ? ' — ' + prodEsc(p.quantity) : '') + '</div>';
-    h += '<div style="color:#999;font-size:12px;margin-bottom:8px">Code ' + prodEsc(gt) + ' — fiche de la base libre Open Food Facts</div>';
+    h += '<div style="color:#999;font-size:12px;margin-bottom:8px">Code ' + prodEsc(gt) + ' — fiche de la base libre ' + prodEsc(bName) + '</div>';
     if (p.image_front_url_small) h += '<img src="' + prodEsc(p.image_front_url_small) + '" alt="" style="max-height:110px;border-radius:10px;margin:0 0 8px"/>';
     if (grade && NS[grade]) h += '<div style="margin:6px 0"><span style="display:inline-block;padding:6px 14px;border-radius:8px;background:' + NS[grade] + ';color:#fff;font-weight:bold;font-size:18px">Nutri-Score ' + grade.toUpperCase() + '</span></div>';
     var nsS = null;
@@ -1263,7 +1277,7 @@
     var ing = p.ingredients_text_fr || p.ingredients_text || '';
     if (ing) h += '<p style="margin:6px 0 0"><b>Ingrédients :</b><br/>' + prodEsc(ing) + '</p>';
     if (p.allergens && !/^\s*$/.test(p.allergens)) h += '<p style="margin:6px 0;color:#b71c1c"><b>Allergènes :</b> ' + prodEsc(p.allergens) + '</p>';
-    h += '<p style="margin:10px 0 0"><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">Voir la fiche complète sur openfoodfacts.org</a></p>';
+    h += '<p style="margin:10px 0 0"><a href="' + bSite + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">Voir la fiche complète sur le site de la base ' + prodEsc(bName) + '</a></p>';
     return h;
   }
   function openProductInfo(gt) {
@@ -1272,20 +1286,27 @@
       prodShowModal('<p>📴 Pas d’Internet : la recherche de la fiche produit a besoin de la connexion. Tout le reste de l’application fonctionne hors-ligne.</p>');
       return;
     }
-    prodShowModal('<p>⏳ Recherche de la fiche du produit ' + prodEsc(gt) + ' sur la base libre Open Food Facts…</p>');
-    fetch('https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(gt) + '.json?fields=code,product_name,brands,quantity,image_front_url_small,ingredients_text_fr,ingredients_text,allergens,nutriscore_grade,nutriscore_score,nutrient_levels,nutriments,additives_n,nova_group')
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        var p = j && j.product;
-        if (!p || j.status === 0 || (!p.product_name && !p.brands && !p.ingredients_text && !p.nutriscore_grade)) {
-          prodShowModal('<p>❌ Caractéristiques et composition non trouvées pour ce produit.</p><p>Ce produit (' + prodEsc(gt) + ') n’est pas encore dans la base libre Open Food Facts (plus de 3 millions de produits alimentaires).</p><p>Les produits récents ou de petites marques manquent parfois : ils ne sont ajoutés que par des contributeurs bénévoles (applications gratuites Open Food Facts ou Yuka).</p><p><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">La page du produit sur openfoodfacts.org</a></p>');
-          return;
-        }
-        prodShowModal(prodHtml(p, gt));
-      })
-      .catch(function (e) {
-        prodShowModal('<p>❌ Recherche impossible : ' + prodEsc(e && e.message ? e.message : e) + '. Vérifiez la connexion Internet, puis réessayez.</p>');
-      });
+    /* V12 : 3 bases libres interrogées à la suite — Open Food Facts
+       (alimentaire), Open Beauty Facts (savons, cosmétiques, sprays…),
+       Open Products Facts (tous les autres produits). Gratuit, sans compte. */
+    prodShowModal('<p>⏳ Recherche de la fiche du produit ' + prodEsc(gt) + ' sur les bases libres (alimentaire, cosmétique, autres produits)…</p>');
+    var idxB = 0;
+    function tryBase() {
+      if (idxB >= PROD_BASES.length) {
+        prodShowModal('<p>❌ Caractéristiques et composition non trouvées pour ce produit.</p><p>Ce produit (' + prodEsc(gt) + ') n’est pas encore dans les bases libres : Open Food Facts (alimentaire), Open Beauty Facts (savons et cosmétiques) ni Open Products Facts (autres produits).</p><p>Les produits récents ou de petites marques manquent parfois : ils ne sont ajoutés que par des contributeurs bénévoles (applications gratuites Open Food Facts ou Yuka).</p><p><a href="https://fr.openfoodfacts.org/produit/' + encodeURIComponent(gt) + '" target="_blank" rel="noopener" style="color:#1565c0">La page du produit sur openfoodfacts.org</a></p>');
+        return;
+      }
+      var b = PROD_BASES[idxB++];
+      fetch(b.api + encodeURIComponent(gt) + '.json?fields=code,product_name,brands,quantity,image_front_url_small,ingredients_text_fr,ingredients_text,allergens,nutriscore_grade,nutriscore_score,nutrient_levels,nutriments,additives_n,nova_group')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var p = j && j.product;
+          if (!p || j.status === 0 || (!p.product_name && !p.brands && !p.ingredients_text && !p.nutriscore_grade)) { tryBase(); return; }
+          prodShowModal(prodHtml(p, gt, b));
+        })
+        .catch(function () { tryBase(); });
+    }
+    tryBase();
   }
   /* V32 : caractéristiques d'un produit La Poste (type d'envoi, n° SD, suivi) —
      tout est calculé sur l'appareil à partir du numéro, SANS Internet. Le lien
@@ -1383,6 +1404,49 @@
     openPosteInfo(prodBtn.getAttribute('data-val'));
   });
   sdInfo.parentNode.insertBefore(prodBtn, sdInfo.nextSibling);
+  /* ================= V13 : PRIX, AVIS CLIENTS ET SPÉCIFICATIONS =================
+     L'application ne peut pas afficher les prix ni les notes DANS la page :
+     les seuls services qui les fournissent en continu sont payants (clé
+     d'accès, abonnement) et exigeraient d'envoyer vos scans sur Internet.
+     À la place, elle ouvre des sites fiables avec le code DÉJÀ TAPÉ :
+     vous comparez en 2 touches, sans rien saisir. Les liens ne s'ouvrent
+     QUE si vous les touchez (rien n'est envoyé automatiquement). */
+  var priceBox = null;
+  function findNearby(g) {
+    var q = encodeURIComponent(g);
+    if (!navigator.geolocation) { window.open('https://www.google.com/maps/search/' + q, '_blank'); return; }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      /* la carte s'ouvre centrée sur votre position : magasins proches qui
+         vendent le produit, adresses, horaires, itinéraires */
+      window.open('https://www.google.com/maps/search/' + q + '/@' + pos.coords.latitude + ',' + pos.coords.longitude + ',13z', '_blank');
+    }, function () {
+      /* position refusée ou indisponible : Google Maps utilise sa propre localisation */
+      window.open('https://www.google.com/maps/search/' + q, '_blank');
+    }, { timeout: 9000 });
+  }
+  function updatePriceBox(value, g) {
+    if (!g) { if (priceBox) priceBox.style.display = 'none'; return; }
+    if (!priceBox) {
+      priceBox = document.createElement('div');
+      priceBox.setAttribute('style', 'display:none;margin:10px 0');
+      prodBtn.parentNode.insertBefore(priceBox, prodBtn.nextSibling);
+    }
+    var enc = encodeURIComponent(g);
+    priceBox.innerHTML =
+      '<div class="hint" style="margin:0 0 6px">🔎 Prix, avis clients et spécifications — où le trouver le moins cher :</div>'
+      + '<div style="background:rgba(255,255,255,.97);color:#222;border-radius:14px;padding:14px;font:14px/1.55 system-ui,sans-serif">'
+      + '<p style="margin:0 0 10px">Pour des raisons de confidentialité (et de coût : ces services sont payants), l’application ne peut pas afficher les prix directement à l’intérieur — sinon il faudrait envoyer vos scans sur Internet à des serveurs tiers. À la place, elle ouvre pour vous des sites fiables, <b>avec le code ' + prodEsc(g) + ' déjà tapé</b> — tout se fait en 2 touches :</p>'
+      + '<p style="margin:0 0 8px"><a href="https://www.google.com/search?tbm=shop&q=' + enc + '" target="_blank" rel="noopener" style="color:#1565c0">🛒 Comparer tous les prix (Google Shopping)</a><br/><span style="color:#666">Prix des magasins et des sites, livraison comprise ou non, offres de proximité, notes vendeurs et avis clients — y compris pour les téléviseurs et l’électronique (HDMI, Dolby Atmos…) sur la fiche du produit.</span></p>'
+      + '<p style="margin:0 0 8px"><a href="#" id="nearShopBtn13" style="color:#1565c0">🗺️ Où l’acheter près de moi</a><br/><span style="color:#666">Utilise votre position pour ouvrir la carte des commerces proches qui vendent le produit (adresses, horaires, distance, itinéraire).</span></p>'
+      + '<p style="margin:0 0 8px"><a href="https://www.amazon.fr/s?k=' + enc + '" target="_blank" rel="noopener" style="color:#1565c0">📦 Voir sur Amazon.fr</a><br/><span style="color:#666">Prix, livraison, note globale de satisfaction et avis clients détaillés.</span></p>'
+      + '<p style="margin:0 0 8px"><a href="https://www.ebay.fr/sch/i.html?_nkw=' + enc + '" target="_blank" rel="noopener" style="color:#1565c0">💶 Voir sur eBay</a><br/><span style="color:#666">Prix neufs et occasions, évaluations des vendeurs.</span></p>'
+      + '<p style="margin:0 0 8px"><a href="https://www.google.com/search?q=' + enc + '+fiche+technique+caracteristiques" target="_blank" rel="noopener" style="color:#1565c0">📺 Fiche technique et spécifications</a><br/><span style="color:#666">Pour la TV, l’électronique et tout appareil : HDMI, Dolby Atmos, dimensions, consommation… (les bases libres ne couvrent quasiment jamais le high-tech).</span></p>'
+      + '<p style="margin:0"><a href="https://www.google.com/search?q=' + enc + '+avis+clients+test" target="_blank" rel="noopener" style="color:#1565c0">⭐ Avis clients et tests du produit</a><br/><span style="color:#666">Notes et commentaires des sites trouvés : bon produit, meilleur rapport qualité/prix, ou à éviter.</span></p>'
+      + '</div>';
+    priceBox.style.display = '';
+    var nb = priceBox.querySelector('#nearShopBtn13');
+    if (nb) nb.onclick = function (evn) { evn.preventDefault(); findNearby(g); };
+  }
   function updateProdBtn(value, mapped) {
     var g = null;
     if (mapped === 'EAN13' || mapped === 'EAN8' || mapped === 'UPC' || mapped === 'DATA_MATRIX' || mapped === 'ITF14') g = prodGtin(value);
@@ -1400,6 +1464,10 @@
     prodBtn.setAttribute('data-val', String(value || ''));
     if (g) prodBtn.setAttribute('data-gtin', g); else prodBtn.removeAttribute('data-gtin');
     prodBtn.style.display = (g || poste) ? '' : 'none';
+    /* V13 : boîte « Prix, avis et spécifications » visible pour TOUT produit
+       (alimentaire, entretien, soin du corps, livre, TV…) — même si la fiche
+       n'est pas dans les bases libres. Rien pour un envoi postal. */
+    try { updatePriceBox(String(value || ''), g); } catch (ePB) {}
     /* V10 : remplissage AUTOMATIQUE de la case « Caractéristiques du produit »
        dès qu'un produit est reconnu : livre (ISBN 978/979) → bases de livres ;
        autre code produit → Open Food Facts ; envoi La Poste → fiche locale. */
@@ -1509,9 +1577,21 @@
       fmt.className = 'fmt';
       fmt.textContent = h.format;
       var btn = document.createElement('button');
+      btn.title = 'Réouvrir ce code (infos + code barre)';
       btn.textContent = '↻';
+      var del = document.createElement('button');
+      del.title = 'Supprimer seulement ce code';
+      del.textContent = '🗑';
+      del.onclick = function (evD) {
+        evD.stopPropagation();
+        hist = hist.filter(function (x) { return x.value !== h.value; });
+        renderHistory(); saveState();
+      };
       btn.onclick = function () { openResult(h.value, h.format); };
-      li.appendChild(span); li.appendChild(fmt); li.appendChild(btn);
+      /* V12 : toucher n'importe où sur la ligne réouvre le code (infos + code barre) */
+      li.style.cursor = 'pointer';
+      li.onclick = function (ev) { if (ev.target === btn || ev.target === del) return; openResult(h.value, h.format); };
+      li.appendChild(span); li.appendChild(fmt); li.appendChild(btn); li.appendChild(del);
       historyEl.appendChild(li);
     });
   }
@@ -1528,6 +1608,9 @@
     try { output.innerHTML = ''; } catch (e) {}
     try { historyEl.innerHTML = ''; emptyHist.style.display = 'block'; } catch (e) {}
     try { photoInput.value = ''; } catch (e) {}
+    try { prodHide(); } catch (eWB) {}
+    try { if (priceBox) priceBox.style.display = 'none'; } catch (ePB3) {} /* V13 */
+    try { if (tagInfoBox) tagInfoBox.style.display = 'none'; } catch (eTI3) {} /* V14 */
     renderHistory();
   }
   document.getElementById('wipeBtn').onclick = function () {
@@ -1537,13 +1620,22 @@
   /* Restauration après fermeture/rechargement : rien n'est perdu par accident */
   loadState(); updateModeUI(); renderHistory();
   if (lastResult) {
-    valEl.textContent = lastResult;
-    editVal.value = lastResult;
-    tabQr.classList.toggle('active', mode === 'qr');
-    tabBc.classList.toggle('active', mode === 'bc');
-    tabDm.classList.toggle('active', mode === 'dm');
-    resultEl.style.display = 'block';
-    renderOutput();
+    /* V12 : le DERNIER scan est entièrement restauré — code barre régénéré
+       dans le bon type + toutes les infos (produit, livre, La Poste…) —
+       exactement comme si on venait de le scanner. */
+    restoring = true;
+    try {
+      openResult(lastResult, lastFmt || undefined);
+    } catch (eR) {
+      valEl.textContent = lastResult;
+      editVal.value = lastResult;
+      tabQr.classList.toggle('active', mode === 'qr');
+      tabBc.classList.toggle('active', mode === 'bc');
+      tabDm.classList.toggle('active', mode === 'dm');
+      resultEl.style.display = 'block';
+      renderOutput();
+    }
+    restoring = false;
   }
 
   function beepOk() {
@@ -1722,6 +1814,7 @@
     updateFlashUI();
     ocrBtn.style.display = 'none';
     if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    try { video.pause(); } catch (eVP) {} /* V12 : libère vraiment l'élément vidéo */
     video.srcObject = null;
     startBtn.textContent = '▶︎ Démarrer la caméra';
   }
@@ -1746,7 +1839,7 @@
         track.applyConstraints({ advanced: adv }).then(function () {
           if (running) {
             statusEl.className = 'hint';
-            statusEl.textContent = ' Caméra prête — mise au point et zoom automatiques activés. Visez le code-barres.';
+            statusEl.textContent = '📹 Caméra prête — mise au point et zoom automatiques activés. Visez le code-barres.';
           }
         }).catch(function () {});
       }
@@ -1792,15 +1885,15 @@
     if (!torchSupported) {
       flashBtn.disabled = true;
       flashBtn.className = 'sec flashBtn'; flashBtn.style.background = '';
-      flashBtn.textContent = ' Flash indisponible';
+      flashBtn.textContent = '⚡ Flash indisponible';
       flashHint.style.display = '';
-      flashHint.textContent = ' La lampe n’est pas disponible sur ce navigateur (essayez avec Chrome).';
+      flashHint.textContent = '💡 La lampe n’est pas disponible sur ce navigateur (essayez avec Chrome).';
     } else {
       flashBtn.disabled = false;
       flashHint.style.display = 'none';
-      if (torchMode === 'on') { flashBtn.className = 'sec flashBtn on'; flashBtn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)'; flashBtn.textContent = ' Flash : allumé'; }
-      else if (torchMode === 'off') { flashBtn.className = 'sec flashBtn off'; flashBtn.style.background = 'linear-gradient(135deg,#dc2626,#b91c1c)'; flashBtn.textContent = ' Flash : éteint'; }
-      else { flashBtn.className = 'sec flashBtn auto'; flashBtn.style.background = 'linear-gradient(135deg,#ea580c,#c2410c)'; flashBtn.textContent = ' Flash : auto (lampe ' + (torchOn ? 'ON' : 'OFF') + ')'; }
+      if (torchMode === 'on') { flashBtn.className = 'sec flashBtn on'; flashBtn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)'; flashBtn.textContent = '⚡ Flash : allumé'; }
+      else if (torchMode === 'off') { flashBtn.className = 'sec flashBtn off'; flashBtn.style.background = 'linear-gradient(135deg,#dc2626,#b91c1c)'; flashBtn.textContent = '⚡ Flash : éteint'; }
+      else { flashBtn.className = 'sec flashBtn auto'; flashBtn.style.background = 'linear-gradient(135deg,#ea580c,#c2410c)'; flashBtn.textContent = '⚡ Flash : auto (lampe ' + (torchOn ? 'ON' : 'OFF') + ')'; }
     }
   }
   flashBtn.addEventListener('click', function () {
@@ -1816,23 +1909,50 @@
     saveState();
   });
 
+  var camBusy = false; /* V12 : évite les doubles appuis et les démarrages simultanés */
   async function startScan() {
     sideClear();
     if (running) { stopScan(); return; }
+    if (camBusy) return; /* un démarrage est déjà en cours : on ignore l'appui */
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       statusEl.textContent = 'Caméra indisponible ici : utilisez « Scanner depuis une photo » ou hébergez la page en HTTPS.';
       statusEl.className = 'hint err';
       return;
     }
-    /* V27 : on libère TOUTE caméra restée ouverte (autre onglet de l’appli,
-       scan précédent mal refermé) avant d’en demander une nouvelle */
-    try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (eS0) {}
-    stream = null;
+    camBusy = true;
+    startBtn.textContent = '⏳ Démarrage de la caméra…';
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false
-      });
+      /* V12 : on libère TOUTE caméra restée ouverte (autre onglet de l’appli,
+         scan précédent mal refermé), puis on attend un court instant que le
+         téléphone la rende vraiment — sinon la nouvelle demande échoue ou
+         reste bloquée (caméra « déjà utilisée »). */
+      try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (eS0) {}
+      stream = null;
+      try { video.pause(); } catch (eVP0) {}
+      video.srcObject = null;
+      await new Promise(function (rsl) { setTimeout(rsl, 300); });
+      /* V12 : jusqu'à 3 tentatives automatiques (le téléphone garde parfois
+         la caméra occupée une fraction de seconde après un scan) */
+      var lastErr = null, attempt = 0;
+      for (attempt = 0; attempt < 3; attempt++) {
+        try {
+          stream = await Promise.race([
+            navigator.mediaDevices.getUserMedia({
+              video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+              audio: false
+            }),
+            new Promise(function (_, rejT) { setTimeout(function () { rejT(new Error('TIMEOUT')); }, 15000); })
+          ]);
+          lastErr = null;
+          break;
+        } catch (eG) {
+          lastErr = eG;
+          /* permission refusée : inutile de réessayer automatiquement */
+          if (eG && (eG.name === 'NotAllowedError' || eG.name === 'PermissionDeniedError')) break;
+          if (attempt < 2) await new Promise(function (rsl2) { setTimeout(rsl2, 700); });
+        }
+      }
+      if (lastErr) throw lastErr;
       video.srcObject = stream;
       await video.play();
       running = true;
@@ -1868,13 +1988,17 @@
         why = 'la caméra est DÉJÀ UTILISÉE par un autre onglet ou une autre application (une autre version de l’appli ouverte, ou l’appli photo). Fermez-la, puis relancez.';
       } else if (en === 'NotFoundError' || en === 'OverconstrainedError' || en === 'DevicesNotFoundError') {
         why = 'aucune caméra n’a été trouvée sur cet appareil.';
+      } else if (e && e.message === 'TIMEOUT') {
+        why = 'la caméra ne répond plus (elle est restée bloquée par un ancien scan). Fermez complètement l’application et rouvrez-la, puis relancez « Démarrer la caméra ».';
       } else {
         why = (e && e.message ? e.message : e) + '.';
       }
       statusEl.textContent = '⚠️ Impossible de démarrer la caméra : ' + why + ' — vous pouvez aussi utiliser « Scanner depuis une photo ».';
       statusEl.className = 'hint err';
       running = false;
-      startBtn.textContent = '▶︎ Démarrer la caméra';
+    } finally {
+      camBusy = false;
+      if (!running) startBtn.textContent = '▶︎ Démarrer la caméra';
     }
   }
 
@@ -1888,7 +2012,7 @@
     }
     ocrBusy = true;
     statusEl.className = 'hint';
-    statusEl.textContent = ' Lecture des chiffres et lettres écrits à côté…';
+    statusEl.textContent = '🔍 Lecture des chiffres et lettres écrits à côté…';
     var txt = await ocrReadTextDeep(video);
     ocrBusy = false;
     var cands = ocrCandidates(txt);
@@ -1914,7 +2038,7 @@
     }
     var best = ocrBestCandidate(cands);
     saveHistory(best.v, 'TEXTE');
-    pendingNote = best.note || ' Numéro lu sur le texte imprimé à côté du code (code illisible pour la caméra). Vérifiez-le avant usage.';
+    pendingNote = best.note || '🔍 Numéro lu sur le texte imprimé à côté du code (code illisible pour la caméra). Vérifiez-le avant usage.';
     openResult(best.v, ocrGuessFormat(best.v));
   });
 
@@ -1971,22 +2095,22 @@
     if (fmt !== 'EAN13' && fmt !== 'EAN8' && fmt !== 'UPC' && fmt !== 'ITF14') return null;
     var v = value.replace(/\D/g, '');
     if (fmt === 'EAN13') {
-      if (v.length === 12) return { ok: true, value: v + eanCheckDigit(v), note: ' Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
+      if (v.length === 12) return { ok: true, value: v + eanCheckDigit(v), note: '🛠️ Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
       if (v.length === 13) return fmtOk(v, 'EAN13') ? { ok: true, value: v } : { ok: false, value: v };
       return null;
     }
     if (fmt === 'EAN8') {
-      if (v.length === 7) return { ok: true, value: v + eanCheckDigit(v), note: ' Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
+      if (v.length === 7) return { ok: true, value: v + eanCheckDigit(v), note: '🛠️ Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
       if (v.length === 8) return fmtOk(v, 'EAN8') ? { ok: true, value: v } : { ok: false, value: v };
       return null;
     }
     if (fmt === 'UPC') {
-      if (v.length === 11) return { ok: true, value: v + eanUpcCheck(v), note: ' Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
+      if (v.length === 11) return { ok: true, value: v + eanUpcCheck(v), note: '🛠️ Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
       if (v.length === 12) return fmtOk(v, 'UPC') ? { ok: true, value: v } : { ok: false, value: v };
       return null;
     }
     if (fmt === 'ITF14') {
-      if (v.length === 13) return { ok: true, value: v + eanUpcCheck13(v), note: ' Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
+      if (v.length === 13) return { ok: true, value: v + eanUpcCheck13(v), note: '🛠️ Chiffre manquant : la clé de contrôle a été recalculée automatiquement.' };
       if (v.length === 14) return fmtOk(v, 'ITF14') ? { ok: true, value: v } : { ok: false, value: v };
       return null;
     }
@@ -2018,7 +2142,7 @@
     if (!pool.length || !fmt) return;
     var voted = majorityVote();
     var chk = voted ? checkValue(voted, fmt.f) : null;
-    if (chk && chk.ok) acceptResult(chk.value, fmt.raw, chk.note || ' Code recomposé à partir des lectures voisines, puis vérifié par la clé de contrôle.');
+    if (chk && chk.ok) acceptResult(chk.value, fmt.raw, chk.note || '🛠️ Code recomposé à partir des lectures voisines, puis vérifié par la clé de contrôle.');
     else if (voted) acceptResult(voted, fmt.raw, null);
   }
 
@@ -2309,6 +2433,7 @@
       }
     }
     lastResult = value;
+    lastFmt = mapped || lastFmt; /* V12 : mémorise le type du code reconnu */
     valEl.textContent = value;
     editVal.value = value;
     repairNote.style.display = note ? '' : 'none';
@@ -2318,6 +2443,7 @@
     showLinkInfo(value);
     showCourierInfo(value, mapped);
     try { updateProdBtn(value, mapped); } catch (ePr) {} /* V27 : fiche produit si code EAN / UPC / DataMatrix GS1 */
+    try { renderTagInfo(value); } catch (eTag2) {} /* V14 : étiquette NFC (relevé) reconnue */
     if (mapped === 'QR_CODE') { mode = 'qr'; }
     else if (mapped === 'DATA_MATRIX') { mode = 'dm'; }
     else if (mapped) { mode = 'bc'; }
@@ -2330,7 +2456,7 @@
     tabBc.classList.toggle('active', mode === 'bc');
     tabDm.classList.toggle('active', mode === 'dm');
     resultEl.style.display = 'block';
-    resultEl.scrollIntoView({ behavior: 'smooth' });
+    if (!restoring) resultEl.scrollIntoView({ behavior: 'smooth' }); /* V12 : pas de défilement auto à la réouverture */
     renderOutput();
     saveState();
   }
@@ -2992,6 +3118,301 @@
   /* ================= EXPORT PNG / IMPRESSION / PLEIN ÉCRAN ================= */
   function currentSvg() { return output.querySelector('svg'); }
 
+  /* ================= V14 : ÉTIQUETTE NFC → QR / DATAMATRIX (RELEVÉ) =================
+     Récupère les informations d'une puce NFC (ou saisie manuelle) : nom, prénom,
+     adresse, heure de relevé, tranche de passage… puis les transforme en QR code
+     ou DataMatrix IMPRIMABLE à coller. À la relecture du code, toutes les
+     informations s'affichent avec des boutons copier-coller. 100 % sur votre
+     appareil : rien n'est envoyé sur Internet. Le DataMatrix fait partie de la
+     même famille visuelle que la Smart Data La Poste (carré noir en L). */
+  var tagInfoBox = null, tagPage = null;
+  var TAG_FIELDS = [
+    ['nom', 'Nom'], ['prenom', 'Prénom'], ['adresse', 'Adresse'],
+    ['tel', 'Téléphone'], ['releve', 'Heure de relevé'], ['tranche', 'Tranche de passage (ex : 14h-16h)'], ['notes', 'Remarque']
+  ];
+  function tagDeaccent(x) {
+    x = String(x == null ? '' : x);
+    var from = 'àáâãäçèéêëìíîïñòóôõöùúûüýÿÀÁÂÃÄÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ';
+    var to = 'aaaaaceeeeiiiinooooouuuuyyAAAAACEEEEIIIINOOOOOUUUUY';
+    var out = '';
+    for (var i = 0; i < x.length; i++) {
+      var j = from.indexOf(x[i]);
+      out += j >= 0 ? to[j] : x[i];
+    }
+    return out.replace(/[^\x20-\x7E]/g, '');
+  }
+  function tagBuildValue(f, fmt) {
+    var parts = [f.nom, f.prenom, f.adresse, f.tel, f.releve, f.tranche, f.notes];
+    if (fmt === 'dm') parts = parts.map(function (x) { return tagDeaccent(x); });
+    else parts = parts.map(function (x) { return String(x == null ? '' : x).trim(); });
+    return 'NFC:' + parts.join(';');
+  }
+  function tagParseValue(v) {
+    v = String(v == null ? '' : v).trim();
+    if (v.slice(0, 4) !== 'NFC:') return null;
+    var parts = v.slice(4).split(';');
+    if (parts.length < 3) return null;
+    return { nom: parts[0] || '', prenom: parts[1] || '', adresse: parts[2] || '', tel: parts[3] || '', releve: parts[4] || '', tranche: parts[5] || '', notes: parts.slice(6).join(';') || '' };
+  }
+  function tagParseText(t) {
+    var f = { nom: '', prenom: '', adresse: '', tel: '', releve: '', tranche: '', notes: '' };
+    t = String(t == null ? '' : t).trim();
+    if (!t) return f;
+    var p = tagParseValue(t);
+    if (p) return p;
+    if (/BEGIN:VCARD/i.test(t)) {
+      var g = function (re) { var m = t.match(re); return m ? m[1].trim() : ''; };
+      var fn = g(/FN:([^\r\n]*)/i);
+      if (fn) { var w = fn.split(/\s+/); f.prenom = w.slice(0, -1).join(' '); f.nom = w[w.length - 1]; }
+      var adr = g(/ADR[^:\r\n]*:(.*)/i);
+      if (adr) { var ac = adr.split(';').filter(function (x) { return x && x.trim(); }); f.adresse = ac.slice(2).join(' '); }
+      f.tel = g(/TEL[^:\r\n]*:([^\r\n]*)/i);
+      return f;
+    }
+    var lines = t.split(/\r?\n/), used = [];
+    var rules = [
+      [/^\s*(?:nom|name)\s*[:=]/i, 'nom'], [/^(?:pr[eé]nom|prenom|firstname)\s*[:=]/i, 'prenom'],
+      [/(?:adresse|address)\s*[:=]/i, 'adresse'], [/(?:t[eé]l[eé]phone|t[eé]l|phone|mobile|portable|gsm)\s*[:=]/i, 'tel'],
+      [/(?:relev[eé]|heure|date)\s*[:=]/i, 'releve'], [/(?:tranche|passage)\s*[:=]/i, 'tranche'], [/(?:remarque|note)\s*[:=]/i, 'notes']
+    ];
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i].trim();
+      if (!ln) continue;
+      var hit = false;
+      for (var r = 0; r < rules.length; r++) {
+        if (rules[r][0].test(ln)) {
+          var kv = ln.split(/[:=]/); kv.shift();
+          var val = kv.join(':').trim();
+          if (val && !f[rules[r][1]]) f[rules[r][1]] = val;
+          used.push(i); hit = true; break;
+        }
+      }
+      if (hit) continue;
+      if (/^[+\d][\d\s.]{7,}$/.test(ln)) { if (!f.tel) { f.tel = ln; used.push(i); } continue; }
+      var mtr = ln.match(/(\d{1,2}\s*h\s*[-/à ]\s*\d{1,2}\s*h)/i);
+      if (mtr && !f.tranche) { f.tranche = mtr[1]; used.push(i); continue; }
+    }
+    var rest = [];
+    for (var k = 0; k < lines.length; k++) { if (used.indexOf(k) === -1 && lines[k].trim()) rest.push(lines[k].trim()); }
+    if (rest.length) {
+      if (!f.nom && !f.prenom) { var w2 = rest.shift().split(/\s+/); f.prenom = w2.slice(0, -1).join(' '); f.nom = w2[w2.length - 1]; }
+      if (!f.adresse && rest.length) f.adresse = rest.shift();
+      if (rest.length && !f.notes) f.notes = rest.join(' / ');
+    }
+    return f;
+  }
+  function copyText(txt) {
+    txt = String(txt == null ? '' : txt);
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = txt; ta.setAttribute('style', 'position:fixed;opacity:0');
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand('copy'); ta.remove(); return !!ok;
+      } catch (e) { return false; }
+    }
+    return new Promise(function (res) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).then(function () { res(true); }, function () { res(fallback()); });
+          return;
+        }
+      } catch (e) {}
+      res(fallback());
+    });
+  }
+  function tagLabel(k) { for (var i = 0; i < TAG_FIELDS.length; i++) if (TAG_FIELDS[i][0] === k) return TAG_FIELDS[i][1]; return k; }
+  function renderTagInfo(value) {
+    var p = tagParseValue(value);
+    if (!p) { if (tagInfoBox) tagInfoBox.style.display = 'none'; return; }
+    if (!tagInfoBox) {
+      tagInfoBox = document.createElement('div');
+      tagInfoBox.setAttribute('style', 'display:none;margin:10px 0');
+      try { prodBtn.parentNode.insertBefore(tagInfoBox, prodBtn.nextSibling); } catch (eI) {}
+    }
+    while (tagInfoBox.firstChild) tagInfoBox.removeChild(tagInfoBox.firstChild);
+    var hint = document.createElement('div');
+    hint.setAttribute('class', 'hint'); hint.setAttribute('style', 'margin:0 0 6px');
+    hint.textContent = '\U0001F3F7 Étiquette NFC — informations du relevé contenues dans le code (copier-coller ci-dessous) :';
+    tagInfoBox.appendChild(hint);
+    var box = document.createElement('div');
+    box.setAttribute('style', 'background:rgba(255,255,255,.97);color:#222;border-radius:14px;padding:14px;font:14px/1.55 system-ui,sans-serif');
+    var keys = ['nom', 'prenom', 'adresse', 'tel', 'releve', 'tranche', 'notes'];
+    var full = [];
+    keys.forEach(function (k) {
+      var v = String(p[k] || '').trim();
+      if (!v) return;
+      full.push(tagLabel(k) + ' : ' + v);
+      var row = document.createElement('div');
+      row.setAttribute('style', 'margin:6px 0');
+      var sp = document.createElement('span'); sp.textContent = tagLabel(k) + ' : '; sp.setAttribute('style', 'font-weight:700');
+      var sv = document.createElement('span'); sv.textContent = v;
+      var btn = document.createElement('button'); btn.textContent = '\U0001F4CB Copier';
+      btn.setAttribute('style', 'margin-left:8px;padding:3px 10px;border:0;border-radius:8px;background:#7c3aed;color:#fff;font-size:12px;font-weight:700;cursor:pointer');
+      btn.addEventListener('click', function () {
+        copyText(v).then(function (ok) { btn.textContent = ok ? '\u2705 Copié !' : '\u26A0\uFE0F Copie impossible'; setTimeout(function () { btn.textContent = '\U0001F4CB Copier'; }, 1600); });
+      });
+      row.appendChild(sp); row.appendChild(sv); row.appendChild(btn);
+      box.appendChild(row);
+    });
+    var allBtn = document.createElement('button');
+    allBtn.textContent = '\U0001F4CB Copier TOUTES les informations';
+    allBtn.setAttribute('style', 'display:block;width:100%;margin-top:8px;padding:10px;border:0;border-radius:10px;background:#16a34a;color:#fff;font-size:14px;font-weight:700;cursor:pointer');
+    allBtn.addEventListener('click', function () {
+      copyText(full.join('\n')).then(function (ok) { allBtn.textContent = ok ? '\u2705 Tout est copié — collez où vous voulez (SMS, mail…)' : '\u26A0\uFE0F Copie impossible sur ce navigateur'; setTimeout(function () { allBtn.textContent = '\U0001F4CB Copier TOUTES les informations'; }, 2200); });
+    });
+    box.appendChild(allBtn);
+    tagInfoBox.appendChild(box);
+    tagInfoBox.style.display = '';
+  }
+  function tagApply(value, fmt) {
+    lastResult = value;
+    lastFmt = fmt === 'qr' ? 'QR_CODE' : 'DATA_MATRIX';
+    mode = fmt;
+    valEl.textContent = value;
+    editVal.value = value;
+    tabQr.classList.toggle('active', mode === 'qr');
+    tabBc.classList.toggle('active', mode === 'bc');
+    tabDm.classList.toggle('active', mode === 'dm');
+    resultEl.style.display = 'block';
+    repairNote.style.display = 'none';
+    renderOutput();
+    saveState();
+    try { renderTagInfo(value); } catch (eT) {}
+    try { resultEl.scrollIntoView({ behavior: 'smooth' }); } catch (eS) {}
+  }
+  function tagNfcRead(msgEl, cb) {
+    if (!('NDEFReader' in window)) {
+      msgEl.innerHTML = '<span style="color:#fbbf24">\u26A0\uFE0F NFC indisponible sur ce navigateur — remplissez les champs à la main (marche partout), ou utilisez Chrome sur Android pour lire la puce.</span>';
+      return;
+    }
+    msgEl.innerHTML = '<span style="opacity:.8">\u23F3 NFC activé — approchez la puce…</span>';
+    try {
+      var ndef = new window.NDEFReader(); var done = false;
+      ndef.addEventListener('reading', function (ev) {
+        if (done) return; done = true;
+        var txt = nfcExtractText(ev && ev.message && ev.message.records ? ev.message.records : []);
+        cb(String(txt || ''));
+        msgEl.innerHTML = '\u2705 Puce lue — champs remplis ci-dessous, vérifiez et complétez avant de créer l\u2019étiquette.';
+      });
+      ndef.addEventListener('readingerror', function () { if (!done) msgEl.innerHTML = '<span style="color:#fbbf24">\u26A0\uFE0F Puce illisible — rapprochez le téléphone, écran allumé, sans coque.</span>'; });
+      ndef.scan().catch(function (e) {
+        var n = (e && e.name) || '';
+        if (n === 'NotAllowedError') msgEl.innerHTML = '<span style="color:#fbbf24">\U0001F512 Autorisation NFC refusée — autorisez le NFC (Chrome) puis réessayez.</span>';
+        else msgEl.innerHTML = '<span style="color:#fbbf24">\u26A0\uFE0F NFC impossible : ' + nfcEsc(e && e.message ? e.message : e) + '</span>';
+      });
+    } catch (eN) { msgEl.innerHTML = '<span style="color:#fbbf24">\u26A0\uFE0F NFC impossible : ' + nfcEsc(eN && eN.message ? eN.message : eN) + '</span>'; }
+  }
+  function openTagPage() {
+    if (tagPage) { try { tagPage.remove(); } catch (eRm) {} tagPage = null; }
+    var d0 = new Date(); var pad = function (x) { return (x < 10 ? '0' : '') + x; };
+    var f = { nom: '', prenom: '', adresse: '', tel: '', releve: pad(d0.getDate()) + '/' + pad(d0.getMonth() + 1) + '/' + d0.getFullYear() + ' ' + pad(d0.getHours()) + ':' + pad(d0.getMinutes()), tranche: '', notes: '' };
+    var ov = document.createElement('div');
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:99997;background:#0a0817;color:#eee;overflow:auto;padding:18px');
+    var card = document.createElement('div');
+    card.setAttribute('style', 'max-width:640px;margin:0 auto;background:rgba(255,255,255,.06);border:1px solid rgba(167,139,250,.3);border-radius:18px;padding:16px;font:15px/1.5 system-ui,sans-serif');
+    var title = document.createElement('div');
+    title.setAttribute('style', 'font-weight:800;font-size:18px;margin-bottom:4px');
+    title.textContent = '\U0001F3F7 Étiquette NFC \u2192 QR code / DataMatrix (relevé)';
+    card.appendChild(title);
+    var intro = document.createElement('div');
+    intro.setAttribute('style', 'font-size:13px;opacity:.8;margin-bottom:10px');
+    intro.textContent = 'Récupère les informations d\u2019une puce NFC (nom, prénom, adresse, heure de relevé, tranche de passage…) ou remplissez-les à la main, puis transformez-les en QR code ou DataMatrix à IMPRIMER et à coller. Celui qui re-scannera le code verra toutes les informations et pourra les copier-coller. Tout se passe sur votre appareil, rien n\u2019est envoyé sur Internet.';
+    card.appendChild(intro);
+    var readBtn = document.createElement('button');
+    readBtn.textContent = '\U0001F4E1 Remplir depuis la puce NFC (Chrome Android)';
+    readBtn.setAttribute('style', 'display:block;width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#06b6d4,#7c3aed,#db2777);color:#fff;font-size:15px;font-weight:700;margin:4px 0');
+    card.appendChild(readBtn);
+    var nfcMsg = document.createElement('div');
+    nfcMsg.setAttribute('style', 'font-size:13px;margin:6px 0;word-break:break-word');
+    card.appendChild(nfcMsg);
+    readBtn.addEventListener('click', function () {
+      tagNfcRead(nfcMsg, function (txt) {
+        var pf = tagParseText(txt);
+        for (var k in pf) { if (pf[k] && f[k] !== undefined) { f[k] = pf[k]; if (inputs[k]) inputs[k].value = pf[k]; } }
+        refresh();
+      });
+    });
+    var inputs = {};
+    TAG_FIELDS.forEach(function (fd) {
+      var k = fd[0], lb = fd[1];
+      var lab = document.createElement('label');
+      lab.setAttribute('style', 'display:block;font-size:13px;font-weight:700;margin:8px 0 2px');
+      lab.textContent = lb;
+      card.appendChild(lab);
+      var inp = document.createElement('input');
+      inp.setAttribute('type', 'text');
+      inp.setAttribute('style', 'width:96%;padding:9px 10px;border-radius:10px;border:1px solid rgba(167,139,250,.4);background:rgba(0,0,0,.35);color:#fff;font-size:15px');
+      inp.value = f[k] || '';
+      inp.addEventListener('input', function () { f[k] = inp.value; refresh(); });
+      card.appendChild(inp);
+      inputs[k] = inp;
+    });
+    var fmtSel = document.createElement('select');
+    fmtSel.setAttribute('style', 'display:block;width:100%;margin:10px 0 4px;padding:10px;border-radius:10px;background:rgba(0,0,0,.35);color:#fff;font-size:15px;border:1px solid rgba(167,139,250,.4)');
+    fmtSel.innerHTML = '<option value="qr">QR Code (max 53 caractères)</option><option value="dm">DataMatrix (max 114 caractères — même famille visuelle que la Smart Data)</option>';
+    fmtSel.value = 'dm';
+    card.appendChild(fmtSel);
+    var cnt = document.createElement('div');
+    cnt.setAttribute('style', 'font-size:13px;margin:4px 0');
+    card.appendChild(cnt);
+    var prev = document.createElement('div');
+    prev.setAttribute('style', 'text-align:center;background:#fff;border-radius:14px;padding:14px;margin:10px auto;max-width:300px;min-height:60px');
+    card.appendChild(prev);
+    var err = document.createElement('div');
+    err.setAttribute('style', 'font-size:13px;color:#fbbf24;margin:4px 0;display:none');
+    card.appendChild(err);
+    var genBtn = document.createElement('button');
+    genBtn.textContent = '\U0001F3F7 Créer l\u2019étiquette (code affiché + Imprimer / PDF / PNG)';
+    genBtn.setAttribute('style', 'display:block;width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#06b6d4,#7c3aed,#db2777);color:#fff;font-size:15px;font-weight:700;margin:6px 0');
+    card.appendChild(genBtn);
+    var printNow = document.createElement('button');
+    printNow.textContent = '\U0001F5A8️ Imprimer l\u2019étiquette tout de suite';
+    printNow.setAttribute('style', 'display:block;width:100%;padding:10px;border:1px solid rgba(167,139,250,.4);border-radius:12px;background:none;color:#ddd;font-size:14px;margin:2px 0');
+    card.appendChild(printNow);
+    var closeB = document.createElement('button');
+    closeB.textContent = '\u2715 Fermer';
+    closeB.setAttribute('style', 'display:block;width:100%;padding:10px;border:1px solid rgba(167,139,250,.4);border-radius:12px;background:none;color:#ddd;font-size:14px;margin-top:8px');
+    card.appendChild(closeB);
+    closeB.addEventListener('click', function () { ov.remove(); tagPage = null; });
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+    tagPage = ov;
+    function refresh() {
+      var fmt = fmtSel.value === 'qr' ? 'qr' : 'dm';
+      var v = tagBuildValue(f, fmt);
+      cnt.textContent = 'Texte de l\u2019étiquette : ' + v.length + ' caractères — QR ' + (v.length <= 53 ? 'OK' : 'TROP LONG (max 53)') + ' \u00b7 DataMatrix ' + (v.length <= 114 ? 'OK' : 'TROP LONG (max 114)');
+      var tooLong = fmt === 'qr' ? v.length > 53 : v.length > 114;
+      genBtn.disabled = tooLong;
+      printNow.disabled = tooLong;
+      err.style.display = tooLong ? '' : 'none';
+      err.textContent = tooLong ? '\u26A0\uFE0F Trop long pour ce format : raccourcissez les champs (le DataMatrix accepte 114 caractères ; les accents y sont convertis automatiquement).' : '';
+      prev.innerHTML = '';
+      try {
+        var svg = fmt === 'qr' ? BuiltinQR.svg(v, 8, 4) : BuiltinDM.svg(v, 8, 4);
+        prev.innerHTML = svg;
+      } catch (eP) { prev.textContent = 'Aperçu indisponible' + (tooLong ? ' : texte trop long' : ''); }
+      return { val: v, tooLong: tooLong, fmt: fmt };
+    }
+    fmtSel.addEventListener('change', function () { refresh(); });
+    genBtn.addEventListener('click', function () {
+      var r = refresh();
+      if (r.tooLong) return;
+      ov.remove(); tagPage = null;
+      tagApply(r.val, r.fmt);
+    });
+    printNow.addEventListener('click', function () {
+      var r = refresh();
+      if (r.tooLong) return;
+      ov.remove(); tagPage = null;
+      tagApply(r.val, r.fmt);
+      setTimeout(function () { try { printCurrent(); } catch (eP2) {} }, 400);
+    });
+    refresh();
+  }
+  var tagBtn = document.getElementById('tagBtn');
+  if (tagBtn) tagBtn.addEventListener('click', function () { try { openTagPage(); } catch (eTb) {} });
+
   pngBtn.addEventListener('click', function () {
     var srcSvg = currentSvg();
     if (!srcSvg) return;
@@ -3032,7 +3453,7 @@
     }
   });
 
-  printBtn.addEventListener('click', function () {
+  function printCurrent() {
     var srcSvg = currentSvg();
     if (!srcSvg || !lastResult) return;
     document.getElementById('printVal').textContent = lastResult;
@@ -3045,7 +3466,8 @@
     clone.removeAttribute('height');
     holder.appendChild(clone);
     window.print();
-  });
+  }
+  printBtn.addEventListener('click', function () { printCurrent(); });
 
   fullBtn.addEventListener('click', function () {
     var srcSvg = currentSvg();
@@ -3254,7 +3676,7 @@
         }
         finish(true, 'Code illisible — lecture du numéro écrit à côté…');
         statusEl.className = 'hint';
-        statusEl.textContent = ' Code illisible — lecture des chiffres, lettres et symboles écrits à côté…';
+        statusEl.textContent = '🔍 Code illisible — lecture des chiffres, lettres et symboles écrits à côté…';
         ocrReadTextDeep(img).then(function (txt) {
           setPrinted(txt);
           var cands = ocrCandidates(txt);
@@ -3270,7 +3692,7 @@
             var best = ocrBestCandidate(cands);
             statusEl.textContent = '✅ Code illisible, mais le numéro écrit à côté a été lu.';
             saveHistory(best.v, 'TEXTE');
-            pendingNote = best.note || ' Numéro lu sur le texte imprimé à côté du code (code illisible). Vérifiez-le avant usage.';
+            pendingNote = best.note || '🔍 Numéro lu sur le texte imprimé à côté du code (code illisible). Vérifiez-le avant usage.';
             openResult(best.v, ocrGuessFormat(best.v));
           } else {
             statusEl.className = 'hint err';
@@ -3404,6 +3826,9 @@
     genInput.value = '';
     output.innerHTML = '';
     resultEl.style.display = 'none';
+    try { prodHide(); } catch (eCH) {}
+    try { if (priceBox) priceBox.style.display = 'none'; } catch (ePB2) {} /* V13 */
+    try { if (tagInfoBox) tagInfoBox.style.display = 'none'; } catch (eTI2) {} /* V14 */
     saveState();
   });
 })();

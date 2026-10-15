@@ -1,4 +1,4 @@
-var CACHE = 'scan-regen-3-v11';
+var CACHE = 'scan-regen-3-v14';
 var ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }).then(function () { return self.skipWaiting(); }));
@@ -22,4 +22,4 @@ self.addEventListener('fetch', function (e) {
       }).catch(function () { return caches.match('./index.html'); });
     })
   );
-});
+})
