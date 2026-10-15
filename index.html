@@ -1918,9 +1918,154 @@
     statusEl.textContent = '🖐️ Image floue ou instable — rapprochez le code et tenez l\u2019appareil stable.';
   }
 
+  /* ================= V16 : MODE V16 LENS — CADRE QUI FIXE LE CODE + TEXTE À CÔTÉ =================
+     Comme Google Lens : quand un code est repéré, un cadre vert l'encadre et le « fixe »
+     (assombrit le reste), la valeur lue s'affiche au-dessus, et le texte court imprimé
+     SOUS le code (lien, n°, phrase) est lu automatiquement et affiché dessous.
+     Nécessite le lecteur natif (Chrome) : sans cornerPoints, pas de cadre — pas de crash. */
+  var lensWrap = null, lensCv = null, lensCx = null, lensNote = null, lensNoteTimer = null;
+  var lensLastPts = null, lensLastVal = '', lensLastAt = 0, lensOcrAt = 0, lensOcrBusy = false, lensOcrShown = '';
+  function lensInit() { /* enveloppe la vidéo au 1er usage pour poser le cadre par-dessus */
+    try {
+      if (lensCv) return;
+      lensWrap = document.createElement('div');
+      lensWrap.style.position = 'relative';
+      lensWrap.style.width = '100%';
+      video.parentNode.insertBefore(lensWrap, video);
+      lensWrap.appendChild(video);
+      lensCv = document.createElement('canvas');
+      lensCv.style.position = 'absolute';
+      lensCv.style.left = '0'; lensCv.style.top = '0';
+      lensCv.style.width = '100%'; lensCv.style.height = '100%';
+      lensCv.style.pointerEvents = 'none';
+      lensWrap.appendChild(lensCv);
+      lensCx = lensCv.getContext('2d');
+      lensNote = document.createElement('div');
+      lensNote.style.cssText = 'display:none;margin:8px 0 0;padding:8px 10px;border-radius:10px;font-size:.85rem;line-height:1.4;background:rgba(15,23,42,.92);color:#e2e8f0;border:1px solid #22c55e;text-align:center;word-break:break-all';
+      lensWrap.parentNode.insertBefore(lensNote, lensWrap.nextSibling);
+    } catch (e) { lensCv = null; }
+  }
+  function lensOnCode(codeObj) { /* appelé à chaque frame où un code est visible à la caméra */
+    try {
+      lensInit();
+      if (!lensCv) return;
+      var pts = codeObj && codeObj.cornerPoints;
+      if (pts && pts.length >= 4) {
+        lensLastPts = pts;
+        lensLastVal = String(codeObj.rawValue || '');
+        lensLastAt = Date.now();
+      }
+      lensDraw();
+      lensReadBeside();
+    } catch (e) {}
+  }
+  function lensDraw() { /* cadre vert + crochets aux coins + halo « fixé » + étiquette de la valeur */
+    try {
+      if (!lensCv || !lensCx || !lensLastPts) return;
+      var age = Date.now() - lensLastAt;
+      if (age > 1500) { lensCx.clearRect(0, 0, lensCv.width, lensCv.height); return; }
+      var rect = video.getBoundingClientRect();
+      var cw = Math.max(1, Math.round(rect.width)), ch = Math.max(1, Math.round(rect.height));
+      if (lensCv.width !== cw || lensCv.height !== ch) { lensCv.width = cw; lensCv.height = ch; }
+      var vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+      var sx = cw / vw, sy = ch / vh;
+      var xs = [], ys = [], i;
+      for (i = 0; i < lensLastPts.length; i++) { xs.push(lensLastPts[i].x); ys.push(lensLastPts[i].y); }
+      var x0 = Math.min.apply(null, xs) * sx, x1 = Math.max.apply(null, xs) * sx;
+      var y0 = Math.min.apply(null, ys) * sy, y1 = Math.max.apply(null, ys) * sy;
+      var fresh = Math.max(0, 1 - age / 1500);
+      lensCx.clearRect(0, 0, cw, ch);
+      /* le reste de l'image est assombri, le code reste lumineux : effet « fixé » */
+      lensCx.save();
+      lensCx.fillStyle = 'rgba(0,0,0,' + (0.28 * fresh).toFixed(2) + ')';
+      lensCx.beginPath();
+      lensCx.rect(0, 0, cw, ch);
+      lensCx.rect(x0, y0, x1 - x0, y1 - y0);
+      lensCx.fill('evenodd');
+      lensCx.restore();
+      var col = fresh > 0.4 ? '#22c55e' : 'rgba(34,197,94,' + fresh.toFixed(2) + ')';
+      lensCx.strokeStyle = col; lensCx.lineWidth = 2;
+      lensCx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+      var cc = Math.min(22, (x1 - x0) / 3, (y1 - y0) / 3);
+      lensCx.lineWidth = 5;
+      var corners = [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]];
+      for (i = 0; i < corners.length; i++) {
+        var k = corners[i];
+        lensCx.beginPath();
+        lensCx.moveTo(k[0] + cc * k[2], k[1]);
+        lensCx.lineTo(k[0], k[1]);
+        lensCx.lineTo(k[0], k[1] + cc * k[3]);
+        lensCx.stroke();
+      }
+      /* étiquette : la valeur lue, au-dessus du cadre */
+      if (lensLastVal) {
+        var lbl = lensLastVal.length > 42 ? lensLastVal.slice(0, 42) + '…' : lensLastVal;
+        lensCx.font = '600 13px system-ui,sans-serif';
+        var tw = lensCx.measureText(lbl).width + 16;
+        var lx = Math.max(4, Math.min(cw - tw - 4, x0));
+        var ly = Math.max(4, y0 - 26);
+        lensCx.fillStyle = 'rgba(34,197,94,.92)';
+        lensCx.fillRect(lx, ly, tw, 22);
+        lensCx.fillStyle = '#04140a';
+        lensCx.fillText(lbl, lx + 8, ly + 15);
+      }
+    } catch (e) {}
+  }
+  function lensReadBeside() { /* lit le texte court imprimé SOUS le code (comme Lens) */
+    try {
+      if (!ocrAvailable() || lensOcrBusy) return;
+      if (Date.now() - lensOcrAt < 2200 || Date.now() - lensLastAt > 1800 || !lensLastPts) return;
+      if (stabMeasure().sharp < 0.08) return; /* OCR seulement sur image nette */
+      lensOcrAt = Date.now(); lensOcrBusy = true;
+      var vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+      var xs = [], ys = [], i;
+      for (i = 0; i < lensLastPts.length; i++) { xs.push(lensLastPts[i].x); ys.push(lensLastPts[i].y); }
+      var x0 = Math.min.apply(null, xs) / vw, x1 = Math.max.apply(null, xs) / vw;
+      var yb = Math.max.apply(null, ys) / vh;
+      var bw = x1 - x0, cx = x0 + bw / 2;
+      var zw = Math.min(1, Math.max(0.18, bw * 2));
+      var zx = Math.max(0, cx - zw / 2);
+      zw = Math.min(zw, 1 - zx);
+      var zh = Math.min(1 - yb, 0.32);
+      if (zh < 0.05) { lensOcrBusy = false; return; }
+      var c = ocrPrepareCanvas(video, { x: zx, y: yb, w: zw, h: zh });
+      if (!c) { lensOcrBusy = false; return; }
+      var eng = getOcrEngine();
+      if (!eng) { lensOcrBusy = false; return; }
+      eng.then(function (wk) {
+        if (!wk) { lensOcrBusy = false; return null; }
+        return wk.recognize(c);
+      }).then(function (res) {
+        lensOcrBusy = false;
+        var t = (res && res.data && res.data.text) ? String(res.data.text).replace(/\s+/g, ' ').trim() : '';
+        if (t && t.length >= 2 && t.length <= 90 && t !== lensOcrShown) {
+          lensOcrShown = t;
+          lensNoteShow('\U0001F4DD Texte lu à côté du code : « ' + t + ' »');
+        }
+      }).catch(function () { lensOcrBusy = false; });
+    } catch (e) { lensOcrBusy = false; }
+  }
+  function lensNoteShow(txt) {
+    try {
+      lensInit();
+      if (!lensNote) return;
+      lensNote.textContent = txt;
+      lensNote.style.display = '';
+      if (lensNoteTimer) clearTimeout(lensNoteTimer);
+      lensNoteTimer = setTimeout(function () { lensNote.style.display = 'none'; }, 7000);
+    } catch (e) {}
+  }
+  function lensReset() {
+    lensLastPts = null; lensLastVal = ''; lensLastAt = 0;
+    try { if (lensCv && lensCx) lensCx.clearRect(0, 0, lensCv.width, lensCv.height); } catch (e) {}
+    try { if (lensNote) lensNote.style.display = 'none'; } catch (e) {}
+  }
+
+
   function stopScan() {
     running = false;
-    stabZone = null; stabPrev = null; stabBest = null; stabBestScore = -1; /* V15 : remise à zéro du stabilisateur */
+    stabZone = null; stabPrev = null; stabBest = null; stabBestScore = -1;
+    lensReset(); /* V16 : cadre Lens effacé */ /* V15 : remise à zéro du stabilisateur */
     if (rafId) cancelAnimationFrame(rafId);
     if (zxLoopId) { clearTimeout(zxLoopId); zxLoopId = null; }
     updateFlashUI();
@@ -2166,6 +2311,7 @@
           if (chkCi && chkCi.ok) { pick = codes[ci]; break; }
         }
         stabZoneFrom(pick); /* V15 : mémorise la zone du code pour la boucle ZXing */
+        lensOnCode(pick); /* V16 : cadre Lens */
         onDetected(pick.rawValue, '' + pick.format);
         if (running) stabSeenHint(); /* V15 : guide « ne bougez plus » dès le 1er aperçu */
       }
