@@ -1,4 +1,4 @@
-const CACHE_NAME = "g-scan-v23-sauvegarde-v3";
+const CACHE_NAME = "g-scan-v23b-livre-produits-v3";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (e) => {

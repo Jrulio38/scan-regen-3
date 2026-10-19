@@ -792,7 +792,11 @@
           }
         } catch (e) {}
       }
-      zone.innerHTML = PROD_HEADER + "<p class='hint' style=\"margin:0\">ℹ️ Produit inconnu dans les bases libres — utilise le bouton 🤖 « Identifier avec l'IA » ci-dessus.</p>";
+      zone.innerHTML = PROD_HEADER + `<p class='hint' style="margin:0">ℹ️ Produit bien lu (code ${esc(barcode)}) mais inconnu des bases gratuites — c'est le fabricant ou des bénévoles qui y ajoutent les fiches, et celle-ci manque. Utilise le bouton 🤖 « Identifier avec l'IA » ci-dessus.</p>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <a href="https://www.google.com/search?q=${encodeURIComponent(barcode)}" target="_blank" rel="noopener" style="flex:1;min-width:140px"><button class="secondary" style="margin-top:0;width:100%">🔍 Rechercher ce code sur le web</button></a>
+          <a href="https://www.google.com/search?tbm=shop&q=${encodeURIComponent(barcode)}" target="_blank" rel="noopener" style="flex:1;min-width:140px"><button class="secondary" style="margin-top:0;width:100%">🛒 Chercher ce produit à vendre</button></a>
+        </div>`;
     }
 
     const SCORE_COLORS = { a: "#038141", b: "#85bb2f", c: "#fecb02", d: "#ee8100", e: "#e63e09", unknown: "#9ca3af" };
@@ -874,11 +878,15 @@
     async function loadBookInfo(isbn) {
       const zone = document.getElementById("product-info");
       zone.innerHTML = PROD_HEADER + "<p class='hint' style=\"margin:0\">⏳ Recherche livre…</p>";
+      let it = null;
       try {
         const r = await fetch("https://www.googleapis.com/books/v1/volumes?q=isbn:" + isbn);
-        const j = await r.json();
-        const it = j && j.items && j.items[0] && j.items[0].volumeInfo;
-        if (it) {
+        if (r.ok) {
+          const j = await r.json();
+          it = j && j.items && j.items[0] && j.items[0].volumeInfo;
+        }
+      } catch(e) {}
+      if (it) {
           const img = (it.imageLinks && (it.imageLinks.thumbnail || it.imageLinks.smallThumbnail)) || "";
           zone.innerHTML = `
             <div style="display:flex;gap:12px;padding:4px 0">
@@ -891,9 +899,34 @@
               </div>
             </div>`;
           return;
+      }
+      // Repli Open Library (Google Books peut refuser temporairement les requêtes gratuites)
+      try {
+        const r2 = await fetch("https://openlibrary.org/api/books?bibkeys=ISBN:" + isbn + "&jscmd=data&format=json");
+        const j2 = await r2.json();
+        const d = j2 && j2["ISBN:" + isbn];
+        if (d && (d.title || d.authors)) {
+          const img2 = (d.cover && (d.cover.small || d.cover.medium || d.cover.large)) || "";
+          const aut2 = (d.authors || []).map(function(a){ return a.name; }).join(", ");
+          const pub2 = (d.publishers || []).map(function(p){ return p.name; }).join(", ");
+          zone.innerHTML = `
+            <div style="display:flex;gap:12px;padding:4px 0">
+              ${img2 ? `<img src="${esc(img2)}" alt="" style="width:56px;height:84px;object-fit:contain;border-radius:6px;background:#fff">` : ""}
+              <div>
+                <div style="font-weight:700">📖 ${esc(d.title || "")}</div>
+                ${aut2 ? `<div style="color:#a78bfa;font-size:13px">✍️ ${esc(aut2)}</div>` : ""}
+                ${pub2 ? `<div style="color:#9ca3af;font-size:12px">🏢 ${esc(pub2)}${d.publish_date ? " · " + esc(d.publish_date) : ""}</div>` : ""}
+                ${d.number_of_pages ? `<div style="color:#9ca3af;font-size:12px">📄 ${esc(String(d.number_of_pages))} pages</div>` : ""}
+                <div style="color:#6b7280;font-size:11px;margin-top:6px">Open Library · ${esc(isbn)}</div>
+              </div>
+            </div>`;
+          return;
         }
       } catch(e) {}
-      zone.innerHTML = "<p class='hint'>ℹ️ Livre introuvable.</p>";
+      zone.innerHTML = PROD_HEADER + `<p class='hint' style="margin:0">ℹ️ Livre bien reconnu (ISBN ${esc(isbn)}) mais sa fiche manque dans les bases gratuites (Google Books et Open Library).</p>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <a href="https://www.google.com/search?q=${encodeURIComponent(isbn)}" target="_blank" rel="noopener" style="flex:1;min-width:140px"><button class="secondary" style="margin-top:0;width:100%">🔍 Rechercher ce livre sur le web</button></a>
+        </div>`;
     }
 
     function iaClassify(v) {
