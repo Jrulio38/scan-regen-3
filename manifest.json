@@ -1,13 +1,13 @@
 {
-  "name": "G-scan — Scanner intelligent",
-  "short_name": "G-scan",
-  "description": "Scanner QR, codes-barres, DataMatrix + analyse IA locale + infos produit — tout en un",
+  "name": "Scan & Régénère 3",
+  "short_name": "Scan Règen 3",
+  "description": "Scan & Régénère 3 : scanner, réparer, régénérer tous les codes (QR, barres, DataMatrix, Smart Data) — fiable, local, gratuit",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0a0817",
-  "theme_color": "#0a0817",
+  "background_color": "#070b18",
+  "theme_color": "#070b18",
   "icons": [
     { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
